@@ -10,7 +10,22 @@
 #include <QTabWidget>
 #include <QStatusBar>
 #include <QStringList>
+#include <QLabel>
+#include <QLineEdit>
+#include <QComboBox>
+#include <QSpinBox>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QPushButton>
+#include <QMenu>
+#include <QAction>
+#include <QMessageBox>
+#include <QDebug>
+#include <QVector>
 #include "gncdblib/include/gncdb.h"
+
 
 // 定义一个结构体来存储SQL查询结果
 struct SQLResult {
@@ -39,7 +54,14 @@ private slots:
     void onShowTables();
     void onTableSelected(QTreeWidgetItem *item, int column);
     void onRefreshTables();
-    void displaySQLResult(const SQLResult &result);
+    void onCreateTable();
+    void onDropTable();
+    void onAddRow();
+    void onEditRow();
+    void onDeleteRow();
+    void showTableContextMenu(const QPoint &pos);
+    void showCreateTableDialog();
+
 private:
     Ui::MainWindow *ui;
     GNCDB *db;
@@ -48,11 +70,21 @@ private:
     QTextEdit *sqlEditor;
     QTabWidget *mainTab;
     QStatusBar *statusBar;
+    QString currentTable;
+    QStringList currentColumnNames;
 
     void initUI();
     void initConnections();
     void updateTableList();
     void showTableData(const QString &tableName);
     void showError(const QString &message);
+    void setupTableManagementActions();
+    void showEditRowDialog(const QStringList &rowData = QStringList());
+    void executeInsertSQL(const QString &tableName, const QStringList &values);
+    void executeUpdateSQL(const QString &tableName, const QStringList &values, int rowIndex, const QMap<int, FieldType> &columnFieldTypes);
+    void executeDeleteSQL(const QString &tableName, int rowIndex);
+    FieldType getFieldTypeFromString(const QString &typeStr);
+    QString getFieldTypeName(int typeId); // 声明 getFieldTypeName 方法
+    void loadTableColumns(QTreeWidgetItem *tableItem); // 声明 loadTableColumns 方法‘
 };
 #endif // MAINWINDOW_H
