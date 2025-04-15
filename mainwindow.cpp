@@ -14,6 +14,7 @@
 #include <QFile>
 #include <QVector>
 #include <QStringList>
+#include <QFileDialog>
 
 // 定义一个结构体来存储表名
 struct TableInfo {
@@ -142,7 +143,7 @@ void MainWindow::initUI()
 
     // 创建工具栏
     QToolBar *toolBar = addToolBar("工具栏");
-    toolBar->addAction("连接数据库", this, &MainWindow::onConnectDB);
+    toolBar->addAction("打开数据库", this, &MainWindow::onConnectDB);  // 修改按钮文本
     toolBar->addAction("断开连接", this, &MainWindow::onDisconnectDB);
     toolBar->addAction("刷新表", this, &MainWindow::onRefreshTables);
     // 添加插入行按钮
@@ -192,35 +193,45 @@ void MainWindow::onConnectDB()
         return;
     }
 
+    // 打开文件选择对话框
+    QString fileName = QFileDialog::getOpenFileName(this,
+        tr("打开数据库文件"),
+        QDir::currentPath(),
+        tr("数据库文件 (*.db *.dat)"));
+
+    if (fileName.isEmpty()) {
+        return;
+    }
+
+    // 获取数据库文件所在目录
+    QFileInfo fileInfo(fileName);
+    QString dbDir = fileInfo.absolutePath();
+    
+    // 检查log目录是否存在
+    QDir dir(dbDir);
+    if (!dir.exists("log")) {
+        // 创建log目录
+        if (!dir.mkdir("log")) {
+            QMessageBox::warning(this, "警告", "无法创建log目录");
+            return;
+        }
+        qDebug() << "已创建log目录:" << dbDir + "/log";
+    }
+
     db = new GNCDB();
     int rc;
     
-    // 获取项目根目录
-    QString projectDir = QDir::current().absolutePath();
-    
-    // 检查当前路径是否包含 /build/bin，如果是，则返回项目根目录
-    if (projectDir.contains("/build/bin")) {
-        int buildIndex = projectDir.indexOf("/build");
-        if (buildIndex > 0) {
-            projectDir = projectDir.left(buildIndex);
-        }
-    } else if (projectDir.endsWith("/build")) {
-        projectDir = projectDir.left(projectDir.length() - 6); // 移除 "/build"
-    }
-    
-    qDebug() << "项目根目录：" << projectDir;
-    QString dbPath = QDir(projectDir).absoluteFilePath("testdb.db");
-    qDebug() << "尝试打开数据库文件：" << dbPath;
+    qDebug() << "尝试打开数据库文件：" << fileName;
     
     // 将 QString 转换为 char* 类型
-    QByteArray dbPathBytes = dbPath.toLocal8Bit();
+    QByteArray dbPathBytes = fileName.toLocal8Bit();
     char* dbPathChar = dbPathBytes.data();
     
     if ((rc = GNCDB_open(&db, dbPathChar)) == 0) {
         statusBar->showMessage("数据库连接成功");
         updateTableList();
     } else {
-        QString errorMsg = QString("数据库连接失败，错误代码: %1，文件路径: %2").arg(rc).arg(dbPath);
+        QString errorMsg = QString("数据库连接失败，错误代码: %1，文件路径: %2").arg(rc).arg(fileName);
         showError(errorMsg);
         delete db;
         db = nullptr;
@@ -288,53 +299,50 @@ void MainWindow::onExecuteSQL()
         }
         return;
     }
+
+    // 创建结果显示对话框
+    QDialog *resultDialog = new QDialog(this);
+    resultDialog->setWindowTitle("SQL执行结果");
+    resultDialog->setMinimumSize(600, 400);
+
+    QVBoxLayout *layout = new QVBoxLayout(resultDialog);
     
-    qDebug() << "SQL执行成功，结果行数:" << result.rows.size();
-    qDebug() << "列名:" << result.columnNames;
-    
-    // 更新当前列名
-    currentColumnNames = result.columnNames;
-    
-    // 显示结果 - 直接使用表格更新逻辑
-    // 清空数据表格
-    dataTable->clear();
-    
-    // 过滤掉不需要显示的列
-    QStringList filteredColumnNames;
-    for (const QString &colName : result.columnNames) {
-        if (colName != "rowId" && colName != "createTime" && colName != "updateTime") {
-            filteredColumnNames.append(colName);
-        }
-    }
-    
+    // 创建表格控件
+    QTableWidget *resultTable = new QTableWidget(resultDialog);
+    layout->addWidget(resultTable);
+
     // 设置列
-    dataTable->setColumnCount(filteredColumnNames.size());
-    dataTable->setHorizontalHeaderLabels(filteredColumnNames);
-    
+    resultTable->setColumnCount(result.columnNames.size());
+    resultTable->setHorizontalHeaderLabels(result.columnNames);
+
     // 设置行数据
-    if (!result.rows.isEmpty()) {
-        dataTable->setRowCount(result.rows.size());
-        for (int row = 0; row < result.rows.size(); row++) {
-            const QStringList &rowData = result.rows[row];
-            int displayCol = 0;
-            for (int col = 0; col < rowData.size(); col++) {
-                if (result.columnNames[col] != "rowId" && 
-                    result.columnNames[col] != "createTime" && 
-                    result.columnNames[col] != "updateTime") {
-                    QTableWidgetItem *item = new QTableWidgetItem(rowData[col]);
-                    item->setFlags(item->flags() | Qt::ItemIsEditable);
-                    item->setData(Qt::UserRole, rowData[col]);
-                    dataTable->setItem(row, displayCol++, item);
-                }
-            }
+    resultTable->setRowCount(result.rows.size());
+    for (int row = 0; row < result.rows.size(); row++) {
+        const QStringList &rowData = result.rows[row];
+        for (int col = 0; col < rowData.size(); col++) {
+            QTableWidgetItem *item = new QTableWidgetItem(rowData[col]);
+            resultTable->setItem(row, col, item);
         }
     }
-    
-    // 调整列宽
-    dataTable->resizeColumnsToContents();
-    
+
+    // 自动调整列宽
+    resultTable->resizeColumnsToContents();
+
+    // 添加关闭按钮
+    QPushButton *closeButton = new QPushButton("关闭", resultDialog);
+    layout->addWidget(closeButton);
+    connect(closeButton, &QPushButton::clicked, resultDialog, &QDialog::accept);
+
     // 显示状态信息
     QString statusMsg = QString("查询完成，返回 %1 行数据").arg(result.rows.size());
+    QLabel *statusLabel = new QLabel(statusMsg, resultDialog);
+    layout->addWidget(statusLabel);
+
+    // 显示对话框（非模态）
+    resultDialog->setAttribute(Qt::WA_DeleteOnClose);
+    resultDialog->show();
+
+    // 更新主窗口状态栏
     statusBar->showMessage(statusMsg);
 }
 
