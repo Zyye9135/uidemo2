@@ -42,11 +42,35 @@ find_package(Qt6 COMPONENTS
     REQUIRED
 )
 
+# 添加子目录
+add_subdirectory(database)
+add_subdirectory(ui)
+
+# 包含头文件目录
+include_directories(
+    ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/database
+    ${PROJECT_SOURCE_DIR}/ui
+)
+
+# 添加源文件
+set(SOURCES
+    main.cpp
+    mainwindow.cpp
+    database/dbmanager.cpp
+    ui/tabledialog.cpp
+    ${CMAKE_CURRENT_BINARY_DIR}/gncdb_ui2_autogen/mocs_compilation.cpp
+)
+
 set(PROJECT_SOURCES
-        main.cpp
-        mainwindow.cpp
-        mainwindow.h
-        mainwindow.ui
+    main.cpp
+    mainwindow.cpp
+    mainwindow.h
+    mainwindow.ui
+    database/dbmanager.cpp
+    database/dbmanager.h
+    ui/tabledialog.cpp
+    ui/tabledialog.h
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -84,8 +108,9 @@ target_compile_definitions(gncdb_ui2 PRIVATE
 target_link_libraries(gncdb_ui2 PRIVATE 
     Qt${QT_VERSION_MAJOR}::Widgets
     gncdb
+    database  # 添加 database 库
+    ui        # 添加 ui 库
     Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Sql
-    #${CMAKE_SOURCE_DIR}/gncdblib/lib/libgncdb.a
 )
 
 # 设置调试信息

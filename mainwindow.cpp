@@ -1,5 +1,7 @@
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
+#include "./database/dbmanager.h"
+#include "./ui/tabledialog.h"
 #include "gncdb.h"
 #include <QMessageBox>
 #include <QSqlQuery>
@@ -89,8 +91,8 @@ int sqlResultCallback(void *data, int argc, char **azColName, char **argv) {
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
-    , db(nullptr)
 {
+    dbManager = new DBManager();
     ui->setupUi(this);
     initUI();
     initConnections();
@@ -100,9 +102,7 @@ MainWindow::MainWindow(QWidget *parent)
 MainWindow::~MainWindow()
 {
     delete ui;
-    if (db) {
-        delete db;
-    }
+    delete dbManager;
 }
 
 void MainWindow::initUI()

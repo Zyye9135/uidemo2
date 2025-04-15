@@ -1,4 +1,5 @@
 gncdblib/
 build/
 dsapi
-log_testdb.db
+*.db
+testdb.db

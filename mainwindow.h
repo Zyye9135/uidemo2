@@ -25,13 +25,8 @@
 #include <QDebug>
 #include <QVector>
 #include "gncdblib/include/gncdb.h"
-
-
-// 定义一个结构体来存储SQL查询结果
-struct SQLResult {
-    QStringList columnNames;
-    QVector<QStringList> rows;
-};
+#include "database/dbmanager.h"
+#include "database/sqlresult.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -64,6 +59,7 @@ private slots:
 
 private:
     Ui::MainWindow *ui;
+    DBManager *dbManager;
     GNCDB *db;
     QTreeWidget *tableTree;
     QTableWidget *dataTable;
@@ -84,7 +80,8 @@ private:
     void executeUpdateSQL(const QString &tableName, const QStringList &values, int rowIndex, const QMap<int, FieldType> &columnFieldTypes);
     void executeDeleteSQL(const QString &tableName, int rowIndex);
     FieldType getFieldTypeFromString(const QString &typeStr);
-    QString getFieldTypeName(int typeId); // 声明 getFieldTypeName 方法
-    void loadTableColumns(QTreeWidgetItem *tableItem); // 声明 loadTableColumns 方法‘
+    QString getFieldTypeName(int typeId);
+    void loadTableColumns(QTreeWidgetItem *tableItem);
 };
+
 #endif // MAINWINDOW_H
