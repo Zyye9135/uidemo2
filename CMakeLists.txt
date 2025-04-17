@@ -45,6 +45,7 @@ find_package(Qt6 COMPONENTS
 # 添加子目录
 add_subdirectory(database)
 add_subdirectory(ui)
+add_subdirectory(gncdblib)  # 移到前面确保库先被构建
 
 # 包含头文件目录
 include_directories(
@@ -53,7 +54,7 @@ include_directories(
     ${PROJECT_SOURCE_DIR}/ui
 )
 
-# 添加源文件
+# 定义源文件和资源
 set(SOURCES
     main.cpp
     mainwindow.cpp
@@ -71,33 +72,28 @@ set(PROJECT_SOURCES
     database/dbmanager.h
     ui/tabledialog.cpp
     ui/tabledialog.h
+    resource.rc
 )
 
+set(RESOURCES 
+    resource.rc
+)
+
+# 只在一个地方定义可执行目标
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     qt_add_executable(gncdb_ui2
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
+        ${RESOURCES}
+        resource.rc
     )
-# Define target properties for Android with Qt 6 as:
-#    set_property(TARGET gncdb_ui2 APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
-#                 ${CMAKE_CURRENT_SOURCE_DIR}/android)
-# For more information, see https://doc.qt.io/qt-6/qt-add-executable.html#target-creation
 else()
-    if(ANDROID)
-        add_library(gncdb_ui2 SHARED
-            ${PROJECT_SOURCES}
-        )
-# Define properties for Android with Qt 5 after find_package() calls as:
-#    set(ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android")
-    else()
-        add_executable(gncdb_ui2
-            ${PROJECT_SOURCES}
-        )
-    endif()
+    add_executable(gncdb_ui2
+        ${PROJECT_SOURCES}
+        ${RESOURCES}
+        resource.rc
+    )
 endif()
-
-# 添加 gncdblib 子目录
-add_subdirectory(gncdblib)
 
 # 设置目标属性
 target_compile_definitions(gncdb_ui2 PRIVATE
@@ -108,8 +104,8 @@ target_compile_definitions(gncdb_ui2 PRIVATE
 target_link_libraries(gncdb_ui2 PRIVATE 
     Qt${QT_VERSION_MAJOR}::Widgets
     gncdb
-    database  # 添加 database 库
-    ui        # 添加 ui 库
+    database
+    ui
     Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Sql
 )
 
@@ -123,9 +119,7 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     )
 endif()
 
-# Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
-# If you are developing for iOS or macOS you should consider setting an
-# explicit, fixed bundle identifier manually though.
+# 设置应用属性
 if(${QT_VERSION} VERSION_LESS 6.1.0)
   set(BUNDLE_ID_OPTION MACOSX_BUNDLE_GUI_IDENTIFIER com.example.gncdb_ui2)
 endif()

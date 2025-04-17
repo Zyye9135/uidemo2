@@ -2,3 +2,4 @@ gncdblib/
 build/
 dsapi
 .db
+log/

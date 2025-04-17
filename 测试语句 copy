@@ -1,0 +1,48 @@
+-- 插入测试数据
+INSERT INTO company (id, name, age) VALUES (1, '张三', 30);
+INSERT INTO company (id, name, age) VALUES (2, '李四', 25);
+INSERT INTO company (id, name, age) VALUES (3, '王五', 40);
+INSERT INTO company (id, name, age) VALUES (4, '赵六', 35);
+INSERT INTO company (id, name, age) VALUES (5, '孙七', 28);
+-- 多行插入
+INSERT INTO company (id, name, age) 
+VALUES 
+(6, '周八', 22),
+(7, '吴九', 45),
+(8, '郑十', 33),
+(9, '钱十一', 39),
+(10, '孙十二', 31);
+
+-- 查询所有数据
+SELECT * FROM company;
+
+-- 查询年龄大于 30 的员工
+SELECT * FROM company WHERE age > 30;
+
+-- 查询姓名为 '李四' 的员工
+SELECT * FROM company WHERE name = '李四';
+
+-- 统计员工的总数
+SELECT COUNT(*) FROM company;
+
+-- 计算员工的平均年龄
+SELECT AVG(age) FROM company;
+
+-- 按年龄降序排序
+SELECT * FROM company ORDER BY age DESC;
+
+CREATE TABLE company (
+    id INT PRIMARY KEY,
+    name CHAR(100),
+    age INT
+);
+
+
+
+INSERT INTO company (id, name, age) VALUES (155, '张三san', 30);
+INSERT INTO company (id, name, age) VALUES (122, '李四', 25);
+INSERT INTO company (id, name, age) VALUES (1, '王五', 40);
+INSERT INTO company (id, name, age) VALUES (123, '赵六', 35);
+INSERT INTO company (id, name, age) VALUES (166, '孙七77', 28);
+
+UPDATE company SET name = 'limingming' WHERE id = 6;

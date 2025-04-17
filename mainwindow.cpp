@@ -15,6 +15,9 @@
 #include <QVector>
 #include <QStringList>
 #include <QFileDialog>
+#include <QIcon>
+#include <QCursor>
+#include <QSplitter>
 
 // 定义一个结构体来存储表名
 struct TableInfo {
@@ -92,67 +95,153 @@ int sqlResultCallback(void *data, int argc, char **azColName, char **argv) {
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
+    , db(nullptr)  // 确保初始化为 nullptr
 {
     dbManager = new DBManager();
     ui->setupUi(this);
     initUI();
     initConnections();
-    setupTableManagementActions();
 }
 
 MainWindow::~MainWindow()
 {
+    if (db) {
+        GNCDB_close(&db);  // 确保在析构时正确关闭数据库
+        db = nullptr;
+    }
     delete ui;
     delete dbManager;
 }
 
 void MainWindow::initUI()
 {
-    // 创建主标签页
-    mainTab = new QTabWidget(this);
-    setCentralWidget(mainTab);
-
-    // 创建数据库视图标签页
-    QWidget *dbView = new QWidget(this);
-    QHBoxLayout *dbLayout = new QHBoxLayout(dbView);
-
-    // 左侧表树
-    tableTree = new QTreeWidget(this);
-    tableTree->setHeaderLabel("数据库表");
-    tableTree->setExpandsOnDoubleClick(true); // 添加双击展开功能
-    tableTree->setRootIsDecorated(true);  // 确保显示展开箭头
-    dbLayout->addWidget(tableTree, 1);
-
-    // 右侧数据表格
-    dataTable = new QTableWidget(this);
-    dbLayout->addWidget(dataTable, 3);
-
-    mainTab->addTab(dbView, "数据库视图");
-
-    // 创建SQL编辑器标签页
-    QWidget *sqlView = new QWidget(this);
-    QVBoxLayout *sqlLayout = new QVBoxLayout(sqlView);
-
-    sqlEditor = new QTextEdit(this);
-    sqlLayout->addWidget(sqlEditor);
-
-    // 添加执行按钮到布局
-    sqlLayout->addWidget(ui->executeButton);
-
-    mainTab->addTab(sqlView, "SQL编辑器");
-
-    // 创建工具栏
-    QToolBar *toolBar = addToolBar("工具栏");
-    toolBar->addAction("打开数据库", this, &MainWindow::onConnectDB);  // 修改按钮文本
-    toolBar->addAction("断开连接", this, &MainWindow::onDisconnectDB);
-    toolBar->addAction("刷新表", this, &MainWindow::onRefreshTables);
-    // 添加插入行按钮
-    toolBar->addAction("插入行", this, &MainWindow::onAddRow);
+    setWindowIcon(QIcon(":/app_icon.png"));  
+    // 创建菜单栏
+    menuBar = new QMenuBar(this);
+    setMenuBar(menuBar);
     
-    // 创建状态栏
+    // 文件菜单
+    fileMenu = menuBar->addMenu(tr("文件(&F)"));
+    
+    // 编辑菜单
+    editMenu = menuBar->addMenu(tr("编辑(&E)"));
+    
+    // 数据库菜单
+    databaseMenu = menuBar->addMenu(tr("数据库(&D)"));
+    QAction *openDbAction = databaseMenu->addAction(tr("打开数据库"), this, &MainWindow::onConnectDB);
+    openDbAction->setShortcut(QKeySequence("Ctrl+O"));
+    QAction *disconnectDbAction = databaseMenu->addAction(tr("断开连接"), this, &MainWindow::onDisconnectDB);
+    disconnectDbAction->setShortcut(QKeySequence("Ctrl+D"));
+    
+    // 表管理菜单
+    tableMenu = menuBar->addMenu(tr("表管理(&T)"));
+    tableMenu->addAction(tr("新建表"), this, &MainWindow::onCreateTable);
+    tableMenu->addAction(tr("删除表"), this, &MainWindow::onDropTable);
+    tableMenu->addAction(tr("插入行"), this, &MainWindow::onAddRow);
+    
+    // 视图菜单
+    viewMenu = menuBar->addMenu(tr("视图(&V)"));
+    
+    // SQL菜单
+    sqlMenu = menuBar->addMenu(tr("SQL(&S)"));
+    
+    // 事务菜单
+    transMenu = menuBar->addMenu(tr("事务(&X)"));
+    
+    // 工具菜单
+    toolsMenu = menuBar->addMenu(tr("工具(&O)"));
+    
+    // 帮助菜单
+    helpMenu = menuBar->addMenu(tr("帮助(&H)"));
+
+    // 创建可停靠工具栏
+    mainToolBar = addToolBar(tr("主工具栏"));
+    mainToolBar->setMovable(true);
+    mainToolBar->setFloatable(true);
+    
+    // 创建图表空间按钮
+    QToolButton *chartButton = new QToolButton(this);
+    chartButton->setText(tr("图表空间"));
+    chartButton->setIcon(QIcon(":/icons/chart.png")); // 需要添加相应的图标资源
+    chartButton->setPopupMode(QToolButton::MenuButtonPopup);
+    
+    // 创建图表空间菜单
+    QMenu *chartMenu = new QMenu(this);
+    chartButton->setMenu(chartMenu);
+    
+    // 将图表按钮添加到工具栏
+    mainToolBar->addWidget(chartButton);
+    
+    // 添加分隔符
+    mainToolBar->addSeparator();
+    
+    // 预留动态工具区域（后续可以根据需要动态添加）
+    
+    // 创建主分割器
+    mainSplitter = new QSplitter(Qt::Horizontal, this);
+    setCentralWidget(mainSplitter);
+
+    // 左侧树形结构（30%宽度）
+    tableTree = new QTreeWidget(mainSplitter);
+    tableTree->setHeaderLabel("数据库表");
+    tableTree->setContextMenuPolicy(Qt::CustomContextMenu);
+    
+    // 右侧标签页（70%宽度）
+    rightTabWidget = new QTabWidget(mainSplitter);
+    
+    // 数据标签
+    dataTable = new QTableWidget(rightTabWidget);
+    rightTabWidget->addTab(dataTable, "数据");
+    
+    // SQL标签
+    QWidget *sqlWidget = new QWidget(rightTabWidget);
+    QHBoxLayout *sqlMainLayout = new QHBoxLayout(sqlWidget);
+    
+    // 左侧SQL输入区域
+    QVBoxLayout *sqlLeftLayout = new QVBoxLayout();
+    sqlEditor = new QTextEdit(sqlWidget);
+    sqlEditor->setPlaceholderText(tr("在此输入SQL语句..."));
+    QPushButton *executeButton = new QPushButton(tr("执行SQL"), sqlWidget);
+    sqlLeftLayout->addWidget(sqlEditor);
+    sqlLeftLayout->addWidget(executeButton);
+    
+    // 右侧结果显示区域
+    QVBoxLayout *sqlRightLayout = new QVBoxLayout();
+    sqlResultDisplay = new QTableWidget(sqlWidget);
+    sqlResultDisplay->setEditTriggers(QTableWidget::NoEditTriggers); // 设置为只读
+    sqlRightLayout->addWidget(sqlResultDisplay);
+    
+    // 添加分割器
+    QSplitter *sqlSplitter = new QSplitter(Qt::Horizontal, sqlWidget);
+    QWidget *leftWidget = new QWidget(sqlSplitter);
+    QWidget *rightWidget = new QWidget(sqlSplitter);
+    leftWidget->setLayout(sqlLeftLayout);
+    rightWidget->setLayout(sqlRightLayout);
+    sqlSplitter->addWidget(leftWidget);
+    sqlSplitter->addWidget(rightWidget);
+    
+    // 设置分割器的初始比例（4:6）
+    sqlSplitter->setStretchFactor(0, 4);
+    sqlSplitter->setStretchFactor(1, 6);
+    
+    sqlMainLayout->addWidget(sqlSplitter);
+    rightTabWidget->addTab(sqlWidget, tr("SQL"));
+    
+    // 数据库标签（暂时留空）
+    databaseTab = new QWidget(rightTabWidget);
+    rightTabWidget->addTab(databaseTab, "数据库");
+
+    // 设置分割器初始比例（30:70）
+    mainSplitter->setStretchFactor(0, 3);
+    mainSplitter->setStretchFactor(1, 7);
+
+    // 状态栏
     statusBar = new QStatusBar(this);
     setStatusBar(statusBar);
     statusBar->showMessage("未连接数据库");
+
+    // 连接信号
+    connect(executeButton, &QPushButton::clicked, this, &MainWindow::onExecuteSQL);
 }
 
 void MainWindow::initConnections()
@@ -245,7 +334,7 @@ void MainWindow::onDisconnectDB()
         return;
     }
 
-    GNCDB_close(&db); // 确保函数调用正确
+    GNCDB_close(&db);
     db = nullptr;
     
     // 清空左侧表树
@@ -277,9 +366,6 @@ void MainWindow::onExecuteSQL()
 
     qDebug() << "准备执行SQL语句:" << sql;
     
-    // 清空输入框
-    sqlEditor->clear();
-    
     // 创建SQL结果对象
     SQLResult result;
     
@@ -300,49 +386,27 @@ void MainWindow::onExecuteSQL()
         return;
     }
 
-    // 创建结果显示对话框
-    QDialog *resultDialog = new QDialog(this);
-    resultDialog->setWindowTitle("SQL执行结果");
-    resultDialog->setMinimumSize(600, 400);
-
-    QVBoxLayout *layout = new QVBoxLayout(resultDialog);
-    
-    // 创建表格控件
-    QTableWidget *resultTable = new QTableWidget(resultDialog);
-    layout->addWidget(resultTable);
-
-    // 设置列
-    resultTable->setColumnCount(result.columnNames.size());
-    resultTable->setHorizontalHeaderLabels(result.columnNames);
+    // 清空并设置结果表格
+    sqlResultDisplay->clear();
+    sqlResultDisplay->setRowCount(0);
+    sqlResultDisplay->setColumnCount(result.columnNames.size());
+    sqlResultDisplay->setHorizontalHeaderLabels(result.columnNames);
 
     // 设置行数据
-    resultTable->setRowCount(result.rows.size());
+    sqlResultDisplay->setRowCount(result.rows.size());
     for (int row = 0; row < result.rows.size(); row++) {
         const QStringList &rowData = result.rows[row];
         for (int col = 0; col < rowData.size(); col++) {
             QTableWidgetItem *item = new QTableWidgetItem(rowData[col]);
-            resultTable->setItem(row, col, item);
+            sqlResultDisplay->setItem(row, col, item);
         }
     }
 
     // 自动调整列宽
-    resultTable->resizeColumnsToContents();
+    sqlResultDisplay->resizeColumnsToContents();
 
-    // 添加关闭按钮
-    QPushButton *closeButton = new QPushButton("关闭", resultDialog);
-    layout->addWidget(closeButton);
-    connect(closeButton, &QPushButton::clicked, resultDialog, &QDialog::accept);
-
-    // 显示状态信息
+    // 更新状态栏
     QString statusMsg = QString("查询完成，返回 %1 行数据").arg(result.rows.size());
-    QLabel *statusLabel = new QLabel(statusMsg, resultDialog);
-    layout->addWidget(statusLabel);
-
-    // 显示对话框（非模态）
-    resultDialog->setAttribute(Qt::WA_DeleteOnClose);
-    resultDialog->show();
-
-    // 更新主窗口状态栏
     statusBar->showMessage(statusMsg);
 }
 
@@ -528,8 +592,13 @@ void MainWindow::updateTableList()
         return;
     }
 
-    qDebug() << "开始更新表列表";
+    // 清空表树
     tableTree->clear();
+    
+    // 清空数据表格
+    dataTable->clear();
+    dataTable->setRowCount(0);
+    dataTable->setColumnCount(0);
 
     // 清空表名列表
     tableList.clear();
@@ -633,14 +702,6 @@ void MainWindow::showError(const QString &message)
     statusBar->showMessage(message);
 }
 
-// 在initUI函数中添加表管理菜单
-void MainWindow::setupTableManagementActions()
-{
-    QMenu *tableMenu = menuBar()->addMenu("表管理");
-    tableMenu->addAction("新建表", this, &MainWindow::showCreateTableDialog);
-    tableMenu->addAction("删除表", this, &MainWindow::onDropTable);
-}
-
 void MainWindow::showCreateTableDialog()
 {
     if (!db) {
@@ -687,7 +748,7 @@ void MainWindow::showCreateTableDialog()
         colName->setPlaceholderText("列名");
         
         QComboBox *colType = new QComboBox(&dialog);
-        colType->addItems({"INTEGER", "REAL", "VARCHAR", "TEXT", "BLOB", "DATE", "DATETIME"}); // 只保留支持的类型
+        colType->addItems({"INT", "FLOAT", "VARCHAR", "TEXT", "DATE", "DATETIME"}); // 只保留支持的类型
         
         QSpinBox *colLength = new QSpinBox(&dialog);
         colLength->setRange(1, 255);
@@ -735,12 +796,14 @@ void MainWindow::showCreateTableDialog()
             QString colName = columnNames[i]->text().trimmed();
             QString colType = columnTypes[i]->currentText();
             
+            if (colType == "VARCHAR") {
+                int length = columnLengths[i]->value();
+                colType = QString("CHAR(%1)").arg(length); // 使用 CHAR(length) 格式
+            }
+
             if (colName.isEmpty()) continue;
 
             QString colDef = colName + " " + colType;
-            if (colType == "CHAR") {
-                colDef += QString("(%1)").arg(columnLengths[i]->value());
-            }
             columns.append(colDef);
         }
 
@@ -750,6 +813,7 @@ void MainWindow::showCreateTableDialog()
         }
 
         sql += columns.join(", ") + ")";
+        sql += ";";
         qDebug() << "执行建表SQL:" << sql;
 
         // 执行建表语句
@@ -1013,19 +1077,12 @@ FieldType MainWindow::getFieldTypeFromString(const QString &typeStr) {
 
 void MainWindow::executeInsertSQL(const QString &tableName, const QStringList &values)
 {
-    
     // 获取表的列信息
     SQLResult result;
     QString schemaQuery = QString("SELECT * FROM schema WHERE tableName = '%1'").arg(tableName);
     char *errmsg = nullptr;
     int rc = GNCDB_exec(db, schemaQuery.toUtf8().constData(), sqlResultCallback, &result, &errmsg);
 
-    // 添加调试信息
-    qDebug() << "执行查询schema语句:" << schemaQuery;
-    qDebug() << "返回码:" << rc;
-    if (errmsg) {
-        qDebug() << "错误信息:" << errmsg;
-    }
     if (rc != 0) {
         QString errorMsg = QString("获取表结构失败: %1").arg(errmsg ? errmsg : "未知错误");
         showError(errorMsg);
@@ -1054,15 +1111,17 @@ void MainWindow::executeInsertSQL(const QString &tableName, const QStringList &v
         int colTypeId = row[4].toInt(); // columnType (编号)
         QString colTypeStr = getFieldTypeName(colTypeId); // 映射为类型名称
         FieldType fieldType = getFieldTypeFromString(colTypeStr); // 确保 columnType 转换正确
-        qDebug() << "列名:" << columnName << "类型:" << fieldType << "索引:" << valueIndex;
-        if (fieldType == FIELDTYPE_VARCHAR || fieldType == FIELDTYPE_TEXT) {
+
+        if (fieldType == FIELDTYPE_VARCHAR) {
+            int colLength = row[5].toInt(); // 获取列长度
             QString escapedValue = values[valueIndex].trimmed(); // 确保值被修剪
             if (escapedValue.isEmpty()) {
-                
                 columnValues.append("NULL"); // 空字符串处理为 NULL
             } else {
-                columnValues.append("'" + escapedValue.replace("'", "''") + "'"); // 转义单引号并添加引号
+                columnValues.append(QString("'%1'").arg(escapedValue.replace("'", "''"))); // 转义单引号并添加引号
             }
+            // 添加长度信息
+            columnValues.last() = QString("CHAR(%1)").arg(colLength) + columnValues.last();
         } else {
             columnValues.append(values[valueIndex]);
         }
@@ -1076,12 +1135,6 @@ void MainWindow::executeInsertSQL(const QString &tableName, const QStringList &v
     qDebug() << "执行插入语句:" << sql;
 
     rc = GNCDB_exec(db, sql.toUtf8().constData(), nullptr, nullptr, &errmsg);
-
-    // 输出返回码和错误信息
-    qDebug() << "插入语句返回码:" << rc;
-    if (errmsg) {
-        qDebug() << "错误信息:" << errmsg;
-    }
 
     if (rc != 0) {
         QString errorMsg = QString("插入数据失败: %1").arg(errmsg ? errmsg : "未知错误");
@@ -1098,7 +1151,7 @@ void MainWindow::executeUpdateSQL(const QString &tableName, const QStringList &v
 {
     // 获取列名
     SQLResult result;
-    QString sql = QString("SELECT * FROM schema WHERE tableName = “%1”").arg(tableName);
+    QString sql = QString("SELECT * FROM schema WHERE tableName = '%1'").arg(tableName);
     char *errmsg = nullptr;
     int rc = GNCDB_exec(db, sql.toUtf8().constData(), sqlResultCallback, &result, &errmsg);
     
@@ -1203,4 +1256,51 @@ void MainWindow::executeDeleteSQL(const QString &tableName, int rowIndex)
 
     // 刷新表格数据
     onTableSelected(tableTree->currentItem(), 0);
+}
+
+void MainWindow::onFileAction() {
+    // 文件操作的实现
+    qDebug() << "文件操作被触发";
+}
+
+void MainWindow::onViewAction() {
+    // 视图操作的实现
+    qDebug() << "视图操作被触发";
+}
+
+void MainWindow::onDatabaseAction() {
+    // 数据库操作的实现
+    qDebug() << "数据库操作被触发";
+}
+
+void MainWindow::onSQLAction() {
+    // SQL操作的实现
+    qDebug() << "SQL操作被触发";
+}
+
+void MainWindow::onTransactionAction() {
+    // 事务操作的实现
+    qDebug() << "事务操作被触发";
+}
+
+void MainWindow::onToolsAction() {
+    // 工具操作的实现
+    qDebug() << "工具操作被触发";
+}
+
+void MainWindow::onHelpAction() {
+    // 帮助操作的实现
+    qDebug() << "帮助操作被触发";
+}
+
+void MainWindow::onObjectAction()
+{
+    // 对象操作的实现
+    qDebug() << "对象操作被触发";
+}
+
+void MainWindow::onTableManagementAction()
+{
+    // 表管理操作的实现
+    qDebug() << "表管理操作被触发";
 }

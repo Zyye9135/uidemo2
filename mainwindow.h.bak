@@ -24,9 +24,6 @@
 #include <QMessageBox>
 #include <QDebug>
 #include <QVector>
-#include <QSplitter>
-#include <QToolBar>
-#include <QToolButton>
 #include "gncdblib/include/gncdb.h"
 #include "database/dbmanager.h"
 #include "database/sqlresult.h"
@@ -66,45 +63,18 @@ private slots:
     void onTransactionAction(); // 事务操作
     void onToolsAction();      // 工具操作
     void onHelpAction();       // 帮助操作
-    void onObjectAction();     // 对象操作
-    void onTableManagementAction(); // 表管理操作
 
 private:
     Ui::MainWindow *ui;
     DBManager *dbManager;
     GNCDB *db;
-    
-    // 布局组件
-    QSplitter *mainSplitter;
     QTreeWidget *tableTree;
-    QTabWidget *rightTabWidget;
     QTableWidget *dataTable;
     QTextEdit *sqlEditor;
-    QWidget *databaseTab;
+    QTabWidget *mainTab;
     QStatusBar *statusBar;
-    
-    // 菜单相关
-    QMenuBar *menuBar;
-    QMenu *fileMenu;
-    QMenu *editMenu;
-    QMenu *databaseMenu;
-    QMenu *tableMenu;
-    QMenu *viewMenu;
-    QMenu *sqlMenu;
-    QMenu *transMenu;
-    QMenu *toolsMenu;
-    QMenu *helpMenu;
-    
-    // 工具栏相关
-    QToolBar *mainToolBar;
-    QToolButton *chartButton;
-    QMenu *chartMenu;
-    
-    // 当前状态
     QString currentTable;
     QStringList currentColumnNames;
-
-    QTableWidget *sqlResultDisplay;  // SQL结果显示表格
 
     void initUI();
     void initConnections();
