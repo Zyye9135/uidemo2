@@ -5,5 +5,9 @@
         <file>icons/new_database.png</file>
         <file>icons/disconnect.png</file>
         <file>icons/app_icon.png</file>
+        <file>icons/refresh.png</file>
+        <file>icons/zoom_in.png</file>
+        <file>icons/zoom_out.png</file>
+        <file>icons/exit.png</file>
     </qresource>
 </RCC>

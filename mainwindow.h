@@ -27,6 +27,7 @@
 #include <QSplitter>
 #include <QToolBar>
 #include <QToolButton>
+#include <QCloseEvent>
 #include "gncdblib/include/gncdb.h"
 #include "database/dbmanager.h"
 #include "database/sqlresult.h"
@@ -45,6 +46,9 @@ public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
+protected:
+    void closeEvent(QCloseEvent *event) override;
+
 private slots:
     void onConnectDB();
     void onDisconnectDB();
@@ -57,6 +61,8 @@ private slots:
     void onAddRow();
     void onEditRow();
     void onDeleteRow();
+    //void onRenameTable();  // 新增：重命名表
+    void onClearTable();   // 清空表
     void showTableContextMenu(const QPoint &pos);
     void showCreateTableDialog();
     void onFileAction();       // 文件操作
@@ -70,7 +76,7 @@ private slots:
     void onTableManagementAction(); // 表管理操作
     void onNewDatabase();      // 新建数据库
     void onExit();             // 退出程序
-    void updateDDLView(const QString &tableName);  // 新增更新DDL视图的函数
+    void updateDDLView(const QString &tableName);  // 更新DDL视图
     
     // 新增视图菜单相关的槽函数
     void onShowTreeView();     // 显示树形图
@@ -78,6 +84,8 @@ private slots:
     void onShowDataTab();      // 显示数据标签
     void onShowDDLTab();       // 显示DDL标签
     void onShowSQLTab();       // 显示SQL标签
+    void onZoomIn();
+    void onZoomOut();
 
 private:
     Ui::MainWindow *ui;
@@ -92,7 +100,7 @@ private:
     QTextEdit *sqlEditor;
     QWidget *databaseTab;
     QStatusBar *statusBar;
-    QTextEdit *ddlEditor;  // 新增DDL编辑器
+    QTextEdit *ddlEditor;  // DDL编辑器
     
     // 菜单相关
     QMenuBar *menuBar;

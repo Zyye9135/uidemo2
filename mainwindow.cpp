@@ -125,7 +125,7 @@ MainWindow::~MainWindow()
 
 void MainWindow::initUI()
 {
-    setWindowIcon(QIcon(":/app_icon.png"));  
+    setWindowIcon(QIcon(":/icons/app_icon.png"));  
     // 创建菜单栏
     menuBar = new QMenuBar(this);
     setMenuBar(menuBar);
@@ -148,10 +148,12 @@ void MainWindow::initUI()
     // 数据库菜单
     databaseMenu = menuBar->addMenu(tr("数据库(&D)"));
     
-    // 表管理菜单
-    tableMenu = menuBar->addMenu(tr("表管理(&T)"));
+    // 对象菜单（原表管理菜单）
+    tableMenu = menuBar->addMenu(tr("对象(&O)"));
     tableMenu->addAction(tr("新建表"), this, &MainWindow::onCreateTable);
     tableMenu->addAction(tr("删除表"), this, &MainWindow::onDropTable);
+    //tableMenu->addAction(tr("重命名表"), this, &MainWindow::onRenameTable);
+    tableMenu->addAction(tr("清空表"), this, &MainWindow::onClearTable);
     tableMenu->addAction(tr("插入行"), this, &MainWindow::onAddRow);
     
     // 视图菜单
@@ -206,6 +208,38 @@ void MainWindow::initUI()
     
     // 添加分隔符
     mainToolBar->addSeparator();
+    
+    // 添加刷新表按钮
+    QIcon refreshIcon(":/icons/refresh.png");
+    qDebug() << "Refresh icon is null:" << refreshIcon.isNull();
+    QAction *refreshAction = new QAction(refreshIcon, tr("刷新表"), this);
+    refreshAction->setStatusTip(tr("刷新表列表"));
+    connect(refreshAction, &QAction::triggered, this, &MainWindow::onRefreshTables);
+    mainToolBar->addAction(refreshAction);
+    
+    // 添加放大字体按钮
+    QIcon zoomInIcon(":/icons/zoom_in.png");
+    qDebug() << "Zoom in icon is null:" << zoomInIcon.isNull();
+    QAction *zoomInAction = new QAction(zoomInIcon, tr("放大字体"), this);
+    zoomInAction->setStatusTip(tr("增大字体大小"));
+    connect(zoomInAction, &QAction::triggered, this, &MainWindow::onZoomIn);
+    mainToolBar->addAction(zoomInAction);
+    
+    // 添加缩小字体按钮
+    QIcon zoomOutIcon(":/icons/zoom_out.png");
+    qDebug() << "Zoom out icon is null:" << zoomOutIcon.isNull();
+    QAction *zoomOutAction = new QAction(zoomOutIcon, tr("缩小字体"), this);
+    zoomOutAction->setStatusTip(tr("减小字体大小"));
+    connect(zoomOutAction, &QAction::triggered, this, &MainWindow::onZoomOut);
+    mainToolBar->addAction(zoomOutAction);
+    
+    // 添加退出按钮
+    QIcon exitIcon(":/icons/exit.png");
+    qDebug() << "Exit icon is null:" << exitIcon.isNull();
+    QAction *toolbarExitAction = new QAction(exitIcon, tr("退出"), this);
+    toolbarExitAction->setStatusTip(tr("退出程序"));
+    connect(toolbarExitAction, &QAction::triggered, this, &MainWindow::onExit);
+    mainToolBar->addAction(toolbarExitAction);
     
     // 预留动态工具区域（后续可以根据需要动态添加）
     
@@ -429,9 +463,9 @@ void MainWindow::onExecuteSQL()
     qDebug() << "GNCDB_exec返回码:" << rc;
     
     if (rc != 0) {
-        QString errorMsg = QString("SQL执行失败: %1").arg(errmsg ? errmsg : "未知错误");
+        QString errorMsg = QString("SQL执行失败: %1").arg(rc);
         qDebug() << "错误代码:" << rc;
-        qDebug() << "错误信息:" << errorMsg;
+        //qDebug() << "错误信息:" << errorMsg;
         showError(errorMsg);
         if (errmsg) {
             free(errmsg);
@@ -1366,6 +1400,18 @@ void MainWindow::onExit()
     QApplication::quit();
 }
 
+// 添加closeEvent函数来处理窗口关闭事件
+void MainWindow::closeEvent(QCloseEvent *event)
+{
+    // 如果已连接数据库，先断开连接
+    if (db) {
+        onDisconnectDB();
+    }
+    
+    // 接受关闭事件
+    event->accept();
+}
+
 void MainWindow::onShowTreeView()
 {
     // 树形图功能暂时不实现
@@ -1422,5 +1468,152 @@ void MainWindow::updateDDLView(const QString &tableName)
         ddlEditor->setText(result.rows[0][0]);
     } else {
         ddlEditor->setText("未找到表的创建语句");
+    }
+}
+
+// void MainWindow::onRenameTable()
+// {
+//     if (!db) {
+//         showError("请先连接数据库");
+//         return;
+//     }
+
+//     // 获取当前选中的表
+//     QTreeWidgetItem *currentItem = tableTree->currentItem();
+//     if (!currentItem) {
+//         showError("请先选择要重命名的表");
+//         return;
+//     }
+
+//     QString oldTableName = currentItem->text(0);
+    
+//     // 创建重命名对话框
+//     QDialog dialog(this);
+//     dialog.setWindowTitle("重命名表");
+//     QVBoxLayout *layout = new QVBoxLayout(&dialog);
+    
+//     // 新表名输入
+//     QHBoxLayout *nameLayout = new QHBoxLayout();
+//     QLabel *nameLabel = new QLabel("新表名:", &dialog);
+//     QLineEdit *nameEdit = new QLineEdit(&dialog);
+//     nameEdit->setText(oldTableName);
+//     nameLayout->addWidget(nameLabel);
+//     nameLayout->addWidget(nameEdit);
+//     layout->addLayout(nameLayout);
+    
+//     // 确定和取消按钮
+//     QDialogButtonBox *buttonBox = new QDialogButtonBox(
+//         QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
+//         Qt::Horizontal, &dialog);
+//     layout->addWidget(buttonBox);
+    
+//     // 连接确定按钮
+//     connect(buttonBox, &QDialogButtonBox::accepted, [&]() {
+//         QString newTableName = nameEdit->text().trimmed();
+//         if (newTableName.isEmpty()) {
+//             showError("请输入新表名");
+//             return;
+//         }
+        
+//         if (newTableName == oldTableName) {
+//             dialog.reject();
+//             return;
+//         }
+        
+//         // 构建重命名表的SQL语句
+//         QString sql = QString("ALTER TABLE %1 RENAME TO %2").arg(oldTableName).arg(newTableName);
+        
+//         // 执行重命名操作
+//         char *errmsg = nullptr;
+//         int rc = GNCDB_exec(db, sql.toUtf8().constData(), nullptr, nullptr, &errmsg);
+        
+//         if (rc != 0) {
+//             QString errorMsg = QString("重命名表失败: %1").arg(rc);
+//             showError(errorMsg);
+//             if (errmsg) free(errmsg);
+//             return;
+//         }
+        
+//         // 刷新表列表
+//         updateTableList();
+//         dialog.accept();
+//     });
+    
+//     // 连接取消按钮
+//     connect(buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    
+//     // 显示对话框
+//     dialog.exec();
+// }
+
+void MainWindow::onClearTable()
+{
+    if (!db) {
+        showError("请先连接数据库");
+        return;
+    }
+
+    // 获取当前选中的表
+    QTreeWidgetItem *currentItem = tableTree->currentItem();
+    if (!currentItem) {
+        showError("请先选择要清空的表");
+        return;
+    }
+
+    QString tableName = currentItem->text(0);
+    
+    // 确认对话框
+    QMessageBox::StandardButton reply = QMessageBox::question(
+        this, 
+        "确认清空", 
+        QString("确定要清空表 %1 吗？此操作不可恢复！").arg(tableName),
+        QMessageBox::Yes | QMessageBox::No
+    );
+
+    if (reply == QMessageBox::Yes) {
+        // 构建清空表的SQL语句
+        QString sql = QString("DELETE FROM %1").arg(tableName);
+        
+        // 执行清空操作
+        char *errmsg = nullptr;
+        int rc = GNCDB_exec(db, sql.toUtf8().constData(), nullptr, nullptr, &errmsg);
+        
+        if (rc != 0) {
+            QString errorMsg = QString("清空表失败: %1").arg(errmsg ? errmsg : "未知错误");
+            showError(errorMsg);
+            if (errmsg) free(errmsg);
+            return;
+        }
+        
+        // 刷新表格数据
+        onTableSelected(currentItem, 0);
+    }
+}
+
+void MainWindow::onZoomIn()
+{
+    QFont currentFont = font();
+    currentFont.setPointSize(currentFont.pointSize() + 1);
+    setFont(currentFont);
+    
+    // 更新所有子部件的字体
+    QList<QWidget*> widgets = findChildren<QWidget*>();
+    for (QWidget* widget : widgets) {
+        widget->setFont(currentFont);
+    }
+}
+
+void MainWindow::onZoomOut()
+{
+    QFont currentFont = font();
+    if (currentFont.pointSize() > 1) {  // 确保字体大小不会小于1
+        currentFont.setPointSize(currentFont.pointSize() - 1);
+        setFont(currentFont);
+        
+        // 更新所有子部件的字体
+        QList<QWidget*> widgets = findChildren<QWidget*>();
+        for (QWidget* widget : widgets) {
+            widget->setFont(currentFont);
+        }
     }
 }
