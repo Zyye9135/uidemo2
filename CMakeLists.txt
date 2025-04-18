@@ -12,6 +12,7 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -O0 -Wall -Wextra")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
 
 # 设置Qt相关选项
+set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
@@ -31,16 +32,8 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 # 查找Qt包
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
-
-find_package(Qt6 COMPONENTS
-    Core
-    Gui
-    Widgets
-    Sql
-    REQUIRED
-)
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets Sql)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Sql)
 
 # 添加子目录
 add_subdirectory(database)
@@ -55,14 +48,6 @@ include_directories(
 )
 
 # 定义源文件和资源
-set(SOURCES
-    main.cpp
-    mainwindow.cpp
-    database/dbmanager.cpp
-    ui/tabledialog.cpp
-    ${CMAKE_CURRENT_BINARY_DIR}/gncdb_ui2_autogen/mocs_compilation.cpp
-)
-
 set(PROJECT_SOURCES
     main.cpp
     mainwindow.cpp
@@ -70,30 +55,16 @@ set(PROJECT_SOURCES
     mainwindow.ui
     database/dbmanager.cpp
     database/dbmanager.h
+    database/sqlresult.h
+    resources/resources.qrc
     ui/tabledialog.cpp
     ui/tabledialog.h
-    resource.rc
 )
 
-set(RESOURCES 
-    resource.rc
+# 创建可执行文件
+add_executable(gncdb_ui2
+    ${PROJECT_SOURCES}
 )
-
-# 只在一个地方定义可执行目标
-if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
-    qt_add_executable(gncdb_ui2
-        MANUAL_FINALIZATION
-        ${PROJECT_SOURCES}
-        ${RESOURCES}
-        resource.rc
-    )
-else()
-    add_executable(gncdb_ui2
-        ${PROJECT_SOURCES}
-        ${RESOURCES}
-        resource.rc
-    )
-endif()
 
 # 设置目标属性
 target_compile_definitions(gncdb_ui2 PRIVATE
@@ -103,10 +74,10 @@ target_compile_definitions(gncdb_ui2 PRIVATE
 
 target_link_libraries(gncdb_ui2 PRIVATE 
     Qt${QT_VERSION_MAJOR}::Widgets
+    Qt${QT_VERSION_MAJOR}::Sql
     gncdb
     database
     ui
-    Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Sql
 )
 
 # 设置调试信息
@@ -138,10 +109,6 @@ install(TARGETS gncdb_ui2
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
-
-if(QT_VERSION_MAJOR EQUAL 6)
-    qt_finalize_executable(gncdb_ui2)
-endif()
 
 # 添加调试信息
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")

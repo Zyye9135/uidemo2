@@ -18,6 +18,7 @@
 #include <QIcon>
 #include <QCursor>
 #include <QSplitter>
+#include <QApplication>
 
 // 定义一个结构体来存储表名
 struct TableInfo {
@@ -95,9 +96,18 @@ int sqlResultCallback(void *data, int argc, char **azColName, char **argv) {
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
-    , db(nullptr)  // 确保初始化为 nullptr
+    , dbManager(new DBManager())
+    , db(nullptr)
+    , mainSplitter(nullptr)
+    , tableTree(nullptr)
+    , rightTabWidget(nullptr)
+    , dataTable(nullptr)
+    , sqlEditor(nullptr)
+    , databaseTab(nullptr)
+    , statusBar(nullptr)
+    , ddlEditor(nullptr)
+    , sqlResultDisplay(nullptr)
 {
-    dbManager = new DBManager();
     ui->setupUi(this);
     initUI();
     initConnections();
@@ -106,11 +116,11 @@ MainWindow::MainWindow(QWidget *parent)
 MainWindow::~MainWindow()
 {
     if (db) {
-        GNCDB_close(&db);  // 确保在析构时正确关闭数据库
+        GNCDB_close(&db);
         db = nullptr;
     }
-    delete ui;
     delete dbManager;
+    delete ui;
 }
 
 void MainWindow::initUI()
@@ -122,16 +132,21 @@ void MainWindow::initUI()
     
     // 文件菜单
     fileMenu = menuBar->addMenu(tr("文件(&F)"));
+    QAction *newDbAction = fileMenu->addAction(tr("新建数据库"), this, &MainWindow::onNewDatabase);
+    newDbAction->setShortcut(QKeySequence("Ctrl+N"));
+    QAction *openDbAction = fileMenu->addAction(tr("打开数据库"), this, &MainWindow::onConnectDB);
+    openDbAction->setShortcut(QKeySequence("Ctrl+O"));
+    QAction *disconnectDbAction = fileMenu->addAction(tr("断开连接"), this, &MainWindow::onDisconnectDB);
+    disconnectDbAction->setShortcut(QKeySequence("Ctrl+D"));
+    fileMenu->addSeparator();
+    QAction *exitAction = fileMenu->addAction(tr("退出"), this, &MainWindow::onExit);
+    exitAction->setShortcut(QKeySequence("Alt+F4"));
     
     // 编辑菜单
     editMenu = menuBar->addMenu(tr("编辑(&E)"));
     
     // 数据库菜单
     databaseMenu = menuBar->addMenu(tr("数据库(&D)"));
-    QAction *openDbAction = databaseMenu->addAction(tr("打开数据库"), this, &MainWindow::onConnectDB);
-    openDbAction->setShortcut(QKeySequence("Ctrl+O"));
-    QAction *disconnectDbAction = databaseMenu->addAction(tr("断开连接"), this, &MainWindow::onDisconnectDB);
-    disconnectDbAction->setShortcut(QKeySequence("Ctrl+D"));
     
     // 表管理菜单
     tableMenu = menuBar->addMenu(tr("表管理(&T)"));
@@ -141,6 +156,11 @@ void MainWindow::initUI()
     
     // 视图菜单
     viewMenu = menuBar->addMenu(tr("视图(&V)"));
+    viewMenu->addAction(tr("树形图"), this, &MainWindow::onShowTreeView);
+    viewMenu->addAction(tr("数据库标签"), this, &MainWindow::onShowDatabaseTab);
+    viewMenu->addAction(tr("数据标签"), this, &MainWindow::onShowDataTab);
+    viewMenu->addAction(tr("DDL标签"), this, &MainWindow::onShowDDLTab);
+    viewMenu->addAction(tr("SQL标签"), this, &MainWindow::onShowSQLTab);
     
     // SQL菜单
     sqlMenu = menuBar->addMenu(tr("SQL(&S)"));
@@ -159,18 +179,30 @@ void MainWindow::initUI()
     mainToolBar->setMovable(true);
     mainToolBar->setFloatable(true);
     
-    // 创建图表空间按钮
-    QToolButton *chartButton = new QToolButton(this);
-    chartButton->setText(tr("图表空间"));
-    chartButton->setIcon(QIcon(":/icons/chart.png")); // 需要添加相应的图标资源
-    chartButton->setPopupMode(QToolButton::MenuButtonPopup);
+    // 添加调试信息
+    qDebug() << "Resource paths:" << QDir(":/").entryList();
+    qDebug() << "Icon paths:" << QDir(":/icons").entryList();
     
-    // 创建图表空间菜单
-    QMenu *chartMenu = new QMenu(this);
-    chartButton->setMenu(chartMenu);
+    // 为已存在的动作添加图标
+    QIcon openIcon(":/icons/open_database.png");
+    qDebug() << "Open icon is null:" << openIcon.isNull();
+    openDbAction->setIcon(openIcon);
+    openDbAction->setStatusTip(tr("打开现有数据库"));
+    mainToolBar->addAction(openDbAction);
     
-    // 将图表按钮添加到工具栏
-    mainToolBar->addWidget(chartButton);
+    QIcon newIcon(":/icons/new_database.png");
+    qDebug() << "New icon is null:" << newIcon.isNull();
+    newDbAction->setIcon(newIcon);
+    newDbAction->setStatusTip(tr("创建新数据库"));
+    mainToolBar->addAction(newDbAction);
+    
+    // 添加断开连接按钮
+    QIcon disconnectIcon(":/icons/disconnect.png");
+    qDebug() << "Disconnect icon is null:" << disconnectIcon.isNull();
+    QAction *disconnectAction = new QAction(disconnectIcon, tr("断开连接"), this);
+    disconnectAction->setStatusTip(tr("断开数据库连接"));
+    connect(disconnectAction, &QAction::triggered, this, &MainWindow::onDisconnectDB);
+    mainToolBar->addAction(disconnectAction);
     
     // 添加分隔符
     mainToolBar->addSeparator();
@@ -186,62 +218,83 @@ void MainWindow::initUI()
     tableTree->setHeaderLabel("数据库表");
     tableTree->setContextMenuPolicy(Qt::CustomContextMenu);
     
-    // 右侧标签页（70%宽度）
+    // 创建数据表格
+    dataTable = new QTableWidget(this);
+    dataTable->setEditTriggers(QTableWidget::DoubleClicked);
+    dataTable->setSelectionBehavior(QTableWidget::SelectRows);
+    dataTable->setSelectionMode(QTableWidget::SingleSelection);
+    dataTable->setAlternatingRowColors(true);
+    
+    // 右侧标签页
     rightTabWidget = new QTabWidget(mainSplitter);
     
-    // 数据标签
-    dataTable = new QTableWidget(rightTabWidget);
-    rightTabWidget->addTab(dataTable, "数据");
+    // 数据库标签页
+    databaseTab = new QWidget();
+    QVBoxLayout *databaseLayout = new QVBoxLayout(databaseTab);
+    databaseLayout->addWidget(dataTable);
+    rightTabWidget->addTab(databaseTab, "数据库");
     
-    // SQL标签
-    QWidget *sqlWidget = new QWidget(rightTabWidget);
-    QHBoxLayout *sqlMainLayout = new QHBoxLayout(sqlWidget);
+    // 数据标签页
+    QWidget *dataTab = new QWidget();
+    QVBoxLayout *dataLayout = new QVBoxLayout(dataTab);
+    dataLayout->addWidget(dataTable);
+    rightTabWidget->addTab(dataTab, "数据");
     
-    // 左侧SQL输入区域
-    QVBoxLayout *sqlLeftLayout = new QVBoxLayout();
-    sqlEditor = new QTextEdit(sqlWidget);
+    // DDL标签页
+    QWidget *ddlTab = new QWidget();
+    QVBoxLayout *ddlLayout = new QVBoxLayout(ddlTab);
+    ddlEditor = new QTextEdit();
+    ddlEditor->setReadOnly(true);
+    ddlLayout->addWidget(ddlEditor);
+    rightTabWidget->addTab(ddlTab, "DDL");
+    
+    // SQL标签页
+    QWidget *sqlTab = new QWidget();
+    QHBoxLayout *sqlLayout = new QHBoxLayout(sqlTab);  // 改为水平布局
+    
+    // 左侧SQL编辑区域
+    QWidget *sqlLeftWidget = new QWidget();
+    QVBoxLayout *sqlLeftLayout = new QVBoxLayout(sqlLeftWidget);
+    
+    // SQL编辑器
+    sqlEditor = new QTextEdit();
     sqlEditor->setPlaceholderText(tr("在此输入SQL语句..."));
-    QPushButton *executeButton = new QPushButton(tr("执行SQL"), sqlWidget);
+    
+    // SQL执行按钮
+    QPushButton *executeButton = new QPushButton(tr("执行SQL"));
+    connect(executeButton, &QPushButton::clicked, this, &MainWindow::onExecuteSQL);
+    
     sqlLeftLayout->addWidget(sqlEditor);
     sqlLeftLayout->addWidget(executeButton);
     
     // 右侧结果显示区域
-    QVBoxLayout *sqlRightLayout = new QVBoxLayout();
-    sqlResultDisplay = new QTableWidget(sqlWidget);
-    sqlResultDisplay->setEditTriggers(QTableWidget::NoEditTriggers); // 设置为只读
+    QWidget *sqlRightWidget = new QWidget();
+    QVBoxLayout *sqlRightLayout = new QVBoxLayout(sqlRightWidget);
+    
+    // SQL结果显示区域
+    sqlResultDisplay = new QTableWidget();
+    sqlResultDisplay->setEditTriggers(QTableWidget::NoEditTriggers);
+    
     sqlRightLayout->addWidget(sqlResultDisplay);
     
-    // 添加分割器
-    QSplitter *sqlSplitter = new QSplitter(Qt::Horizontal, sqlWidget);
-    QWidget *leftWidget = new QWidget(sqlSplitter);
-    QWidget *rightWidget = new QWidget(sqlSplitter);
-    leftWidget->setLayout(sqlLeftLayout);
-    rightWidget->setLayout(sqlRightLayout);
-    sqlSplitter->addWidget(leftWidget);
-    sqlSplitter->addWidget(rightWidget);
+    // 添加到主布局
+    sqlLayout->addWidget(sqlLeftWidget, 1);  // 1表示拉伸因子
+    sqlLayout->addWidget(sqlRightWidget, 2); // 2表示拉伸因子，右侧区域更宽
     
-    // 设置分割器的初始比例（4:6）
-    sqlSplitter->setStretchFactor(0, 4);
-    sqlSplitter->setStretchFactor(1, 6);
+    rightTabWidget->addTab(sqlTab, "SQL");
     
-    sqlMainLayout->addWidget(sqlSplitter);
-    rightTabWidget->addTab(sqlWidget, tr("SQL"));
-    
-    // 数据库标签（暂时留空）
-    databaseTab = new QWidget(rightTabWidget);
-    rightTabWidget->addTab(databaseTab, "数据库");
-
     // 设置分割器初始比例（30:70）
     mainSplitter->setStretchFactor(0, 3);
     mainSplitter->setStretchFactor(1, 7);
-
+    
     // 状态栏
     statusBar = new QStatusBar(this);
     setStatusBar(statusBar);
     statusBar->showMessage("未连接数据库");
-
-    // 连接信号
-    connect(executeButton, &QPushButton::clicked, this, &MainWindow::onExecuteSQL);
+    
+    // 初始化其他成员变量
+    currentTable.clear();
+    currentColumnNames.clear();
 }
 
 void MainWindow::initConnections()
@@ -410,8 +463,9 @@ void MainWindow::onExecuteSQL()
     statusBar->showMessage(statusMsg);
 }
 
-void MainWindow::onTableSelected(QTreeWidgetItem *item, int /*column*/) {
-    if (!db || !item) return;
+void MainWindow::onTableSelected(QTreeWidgetItem *item, int /*column*/)
+{
+    if (!db || !item || !dataTable) return;
     
     currentTable = item->text(0);
     qDebug() << "选中表:" << currentTable;
@@ -461,110 +515,19 @@ void MainWindow::onTableSelected(QTreeWidgetItem *item, int /*column*/) {
         return;
     }
     
-    // 显示数据（如果有）
+    // 显示数据
     dataTable->setRowCount(dataResult.rows.size());
-    for (int row = 0; row < dataResult.rows.size(); row++) {
-        const QStringList &rowData = dataResult.rows[row];
-        int displayCol = 0;
-        for (int col = 0; col < rowData.size(); col++) {
-            if (dataResult.columnNames[col] != "rowId" && 
-                dataResult.columnNames[col] != "createTime" && 
-                dataResult.columnNames[col] != "updateTime") {
-                QTableWidgetItem *item = new QTableWidgetItem(rowData[col]);
-                item->setFlags(item->flags() | Qt::ItemIsEditable);
-                item->setData(Qt::UserRole, rowData[col]);
-                dataTable->setItem(row, displayCol++, item);
-            }
+    for (int i = 0; i < dataResult.rows.size(); ++i) {
+        for (int j = 0; j < dataResult.rows[i].size(); ++j) {
+            QTableWidgetItem *item = new QTableWidgetItem(dataResult.rows[i][j]);
+            dataTable->setItem(i, j, item);
         }
     }
     
-    // 调整列宽
-    dataTable->resizeColumnsToContents();
-    
-    // 显示状态信息
-    QString statusMsg = QString("查询完成，返回 %1 行数据").arg(dataResult.rows.size());
-    statusBar->showMessage(statusMsg);
-    
-    // 连接单元格编辑完成的信号
-    connect(dataTable, &QTableWidget::cellChanged, this, [this](int row, int column) {
-        if (!db || currentTable.isEmpty()) {
-            qDebug() << "数据库未连接或表名为空";
-            return;
-        }
-        
-        QTableWidgetItem *item = dataTable->item(row, column);
-        if (!item) {
-            qDebug() << "表格项为空";
-            return;
-        }
-        
-        QString newValue = item->text();
-        QString oldValue = item->data(Qt::UserRole).toString();
-        
-        qDebug() << "编辑单元格 - 行:" << row << "列:" << column;
-        qDebug() << "列名:" << currentColumnNames[column];
-        qDebug() << "原值:" << oldValue << "新值:" << newValue;
-        
-        // 如果值没有改变，直接返回
-        if (newValue == oldValue) {
-            qDebug() << "值未改变，忽略更新";
-            return;
-        }
-        
-        // 获取主键值
-        QTableWidgetItem *primaryKeyItem = dataTable->item(row, 0);
-        if (!primaryKeyItem) {
-            qDebug() << "主键项为空";
-            return;
-        }
-        QString primaryKeyValue = primaryKeyItem->text();
-        qDebug() << "主键值:" << primaryKeyValue;
-        
-        // 判断数据类型
-        bool isInteger = true;
-        for (const QChar &c : newValue) {
-            if (!c.isDigit() && c != '-') {
-                isInteger = false;
-                break;
-            }
-        }
-        
-        qDebug() << "数据类型判断 - 是否为整数:" << isInteger;
-        
-        // 根据类型决定是否添加引号
-        QString formattedValue = newValue;
-        if (!isInteger) {
-            formattedValue = "'" + newValue + "'";
-        }
-        
-        // 构建UPDATE语句
-        QString sql = QString("UPDATE %1 SET %2 = %3 WHERE %4 = %5")
-            .arg(currentTable)
-            .arg(currentColumnNames[column])
-            .arg(formattedValue)
-            .arg(currentColumnNames[0])  // 使用第一列作为主键
-            .arg(primaryKeyValue);
-            
-        qDebug() << "执行UPDATE语句:" << sql;
-            
-        char *errmsg = nullptr;
-        int rc = GNCDB_exec(db, sql.toUtf8().constData(), nullptr, nullptr, &errmsg);
-        
-        if (rc != 0) {
-            QString errorMsg = QString("更新数据失败: %1").arg(errmsg ? errmsg : "未知错误");
-            qDebug() << "错误代码:" << rc;
-            qDebug() << "错误信息:" << errorMsg;
-            showError(errorMsg);
-            if (errmsg) free(errmsg);
-            // 恢复原值
-            item->setText(oldValue);
-            return;
-        }
-        
-        qDebug() << "更新成功";
-        // 保存新值
-        item->setData(Qt::UserRole, newValue);
-    });
+    // 更新DDL视图
+    if (ddlEditor) {
+        updateDDLView(currentTable);
+    }
 }
 
 void MainWindow::onShowTables()
@@ -1263,9 +1226,37 @@ void MainWindow::onFileAction() {
     qDebug() << "文件操作被触发";
 }
 
-void MainWindow::onViewAction() {
-    // 视图操作的实现
-    qDebug() << "视图操作被触发";
+void MainWindow::onViewAction()
+{
+    QMenu viewMenu(this);
+    
+    // 添加树形图选项（暂时禁用）
+    QAction *treeAction = viewMenu.addAction("树形图");
+    treeAction->setEnabled(false);
+    
+    // 添加分隔线
+    viewMenu.addSeparator();
+    
+    // 添加标签页选项
+    QAction *dbTabAction = viewMenu.addAction("数据库标签");
+    QAction *dataTabAction = viewMenu.addAction("数据标签");
+    QAction *ddlTabAction = viewMenu.addAction("DDL标签");
+    QAction *sqlTabAction = viewMenu.addAction("SQL标签");
+    
+    // 显示菜单
+    QAction *selectedAction = viewMenu.exec(QCursor::pos());
+    
+    if (selectedAction) {
+        if (selectedAction == dbTabAction) {
+            rightTabWidget->setCurrentIndex(0);
+        } else if (selectedAction == dataTabAction) {
+            rightTabWidget->setCurrentIndex(1);
+        } else if (selectedAction == ddlTabAction) {
+            rightTabWidget->setCurrentIndex(2);
+        } else if (selectedAction == sqlTabAction) {
+            rightTabWidget->setCurrentIndex(3);
+        }
+    }
 }
 
 void MainWindow::onDatabaseAction() {
@@ -1303,4 +1294,133 @@ void MainWindow::onTableManagementAction()
 {
     // 表管理操作的实现
     qDebug() << "表管理操作被触发";
+}
+
+void MainWindow::onNewDatabase()
+{
+    if (db) {
+        QMessageBox::warning(this, "警告", "已经连接到数据库，请先断开连接");
+        return;
+    }
+
+    // 打开文件保存对话框
+    QString fileName = QFileDialog::getSaveFileName(this,
+        tr("新建数据库文件"),
+        QDir::currentPath(),
+        tr("数据库文件 (*.db *.dat)"));
+
+    if (fileName.isEmpty()) {
+        return;
+    }
+
+    // 确保文件扩展名正确
+    QFileInfo fileInfo(fileName);
+    QString suffix = fileInfo.suffix().toLower();
+    if (suffix != "db" && suffix != "dat") {
+        fileName += ".db"; // 默认使用.db扩展名
+    }
+
+    // 获取数据库文件所在目录
+    QString dbDir = QFileInfo(fileName).absolutePath();
+    
+    // 检查log目录是否存在
+    QDir dir(dbDir);
+    if (!dir.exists("log")) {
+        // 创建log目录
+        if (!dir.mkdir("log")) {
+            QMessageBox::warning(this, "警告", "无法创建log目录");
+            return;
+        }
+        qDebug() << "已创建log目录:" << dbDir + "/log";
+    }
+
+    // 创建新数据库
+    db = new GNCDB();
+    int rc;
+    
+    qDebug() << "尝试创建新数据库文件：" << fileName;
+    
+    // 将 QString 转换为 char* 类型
+    QByteArray dbPathBytes = fileName.toLocal8Bit();
+    char* dbPathChar = dbPathBytes.data();
+    
+    if ((rc = GNCDB_open(&db, dbPathChar)) == 0) {
+        statusBar->showMessage("数据库创建成功");
+        updateTableList();
+    } else {
+        QString errorMsg = QString("数据库创建失败，错误代码: %1，文件路径: %2").arg(rc).arg(fileName);
+        showError(errorMsg);
+        delete db;
+        db = nullptr;
+    }
+}
+
+void MainWindow::onExit()
+{
+    // 如果已连接数据库，先断开连接
+    if (db) {
+        onDisconnectDB();
+    }
+    
+    // 退出应用程序
+    QApplication::quit();
+}
+
+void MainWindow::onShowTreeView()
+{
+    // 树形图功能暂时不实现
+    qDebug() << "树形图功能尚未实现";
+}
+
+void MainWindow::onShowDatabaseTab()
+{
+    if (rightTabWidget) {
+        rightTabWidget->setCurrentIndex(0);
+    }
+}
+
+void MainWindow::onShowDataTab()
+{
+    if (rightTabWidget) {
+        rightTabWidget->setCurrentIndex(1);
+    }
+}
+
+void MainWindow::onShowDDLTab()
+{
+    if (rightTabWidget) {
+        rightTabWidget->setCurrentIndex(2);
+    }
+}
+
+void MainWindow::onShowSQLTab()
+{
+    if (rightTabWidget) {
+        rightTabWidget->setCurrentIndex(3);
+    }
+}
+
+void MainWindow::updateDDLView(const QString &tableName)
+{
+    if (!db || tableName.isEmpty()) return;
+    
+    // 查询master表获取表的创建语句
+    SQLResult result;
+    QString sql = QString("SELECT sql FROM master WHERE tableName = '%1'").arg(tableName);
+    char *errmsg = nullptr;
+    int rc = GNCDB_exec(db, sql.toUtf8().constData(), sqlResultCallback, &result, &errmsg);
+    
+    if (rc != 0) {
+        QString errorMsg = QString("获取表DDL失败: %1").arg(rc);
+        showError(errorMsg);
+        if (errmsg) free(errmsg);
+        return;
+    }
+    
+    // 显示DDL语句
+    if (!result.rows.isEmpty()) {
+        ddlEditor->setText(result.rows[0][0]);
+    } else {
+        ddlEditor->setText("未找到表的创建语句");
+    }
 }

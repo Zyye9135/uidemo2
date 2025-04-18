@@ -68,6 +68,16 @@ private slots:
     void onHelpAction();       // 帮助操作
     void onObjectAction();     // 对象操作
     void onTableManagementAction(); // 表管理操作
+    void onNewDatabase();      // 新建数据库
+    void onExit();             // 退出程序
+    void updateDDLView(const QString &tableName);  // 新增更新DDL视图的函数
+    
+    // 新增视图菜单相关的槽函数
+    void onShowTreeView();     // 显示树形图
+    void onShowDatabaseTab();  // 显示数据库标签
+    void onShowDataTab();      // 显示数据标签
+    void onShowDDLTab();       // 显示DDL标签
+    void onShowSQLTab();       // 显示SQL标签
 
 private:
     Ui::MainWindow *ui;
@@ -82,6 +92,7 @@ private:
     QTextEdit *sqlEditor;
     QWidget *databaseTab;
     QStatusBar *statusBar;
+    QTextEdit *ddlEditor;  // 新增DDL编辑器
     
     // 菜单相关
     QMenuBar *menuBar;

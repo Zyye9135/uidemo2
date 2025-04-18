@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RCC>
+    <qresource prefix="/">
+        <file>icons/open_database.png</file>
+        <file>icons/new_database.png</file>
+        <file>icons/disconnect.png</file>
+        <file>icons/app_icon.png</file>
+    </qresource>
+</RCC>
