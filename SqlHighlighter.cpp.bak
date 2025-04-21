@@ -1,0 +1,167 @@
+#include "SqlHighlighter.h"
+#include <QDebug>
+
+SqlHighlighter::SqlHighlighter(QTextDocument *parent)
+    : QSyntaxHighlighter(parent)
+    , currentTheme("Light")
+{
+    // 初始化SQL关键字
+    keywords = {
+        "SELECT", "FROM", "WHERE", "GROUP BY", "ORDER BY", "HAVING", "JOIN", "LEFT", "RIGHT", "INNER", "OUTER",
+        "ON", "AS", "AND", "OR", "NOT", "IN", "EXISTS", "LIKE", "IS", "NULL", "ISNULL", "NOTNULL",
+        "INSERT", "INTO", "VALUES", "UPDATE", "SET", "DELETE", "CREATE", "TABLE", "ALTER", "DROP",
+        "INDEX", "VIEW", "TRIGGER", "PROCEDURE", "FUNCTION", "BEGIN", "END", "IF", "ELSE", "THEN",
+        "CASE", "WHEN", "ELSE", "END", "LOOP", "WHILE", "FOR", "EXIT", "CONTINUE", "RETURN",
+        "COMMIT", "ROLLBACK", "SAVEPOINT", "GRANT", "REVOKE", "DENY", "UNION", "ALL", "DISTINCT",
+        "COUNT", "SUM", "AVG", "MIN", "MAX", "TOP", "LIMIT", "OFFSET", "ASC", "DESC"
+    };
+    
+    // 初始化主题
+    setupThemes();
+    
+    // 设置高亮规则
+    setupHighlightingRules();
+}
+
+SqlHighlighter::~SqlHighlighter()
+{
+}
+
+void SqlHighlighter::setTheme(const QString &themeName)
+{
+    if (themes.contains(themeName)) {
+        currentTheme = themeName;
+        setupHighlightingRules();
+        rehighlight();
+    } else {
+        qDebug() << "主题" << themeName << "不存在，使用默认主题";
+    }
+}
+
+void SqlHighlighter::addCustomKeywords(const QStringList &newKeywords)
+{
+    customKeywords = newKeywords;
+    setupHighlightingRules();
+    rehighlight();
+}
+
+void SqlHighlighter::highlightBlock(const QString &text)
+{
+    // 添加空文本检查
+    if (text.isEmpty()) {
+        return;
+    }
+    
+    try {
+        // 应用所有高亮规则
+        for (const HighlightingRule &rule : highlightingRules) {
+            QRegularExpressionMatchIterator matchIterator = rule.pattern.globalMatch(text);
+            while (matchIterator.hasNext()) {
+                QRegularExpressionMatch match = matchIterator.next();
+                if (match.hasMatch()) {
+                    setFormat(match.capturedStart(), match.capturedLength(), rule.format);
+                }
+            }
+        }
+        
+        // 高亮字符串
+        QRegularExpression stringPattern("'[^']*'");
+        QRegularExpressionMatchIterator stringMatchIterator = stringPattern.globalMatch(text);
+        QTextCharFormat stringFormat;
+        stringFormat.setForeground(themes[currentTheme]["string"]);
+        while (stringMatchIterator.hasNext()) {
+            QRegularExpressionMatch match = stringMatchIterator.next();
+            if (match.hasMatch()) {
+                setFormat(match.capturedStart(), match.capturedLength(), stringFormat);
+            }
+        }
+        
+        // 高亮注释
+        QRegularExpression commentPattern("--.*$|/\\*[^*]*\\*+(?:[^/*][^*]*\\*+)*/");
+        QRegularExpressionMatchIterator commentMatchIterator = commentPattern.globalMatch(text);
+        QTextCharFormat commentFormat;
+        commentFormat.setForeground(themes[currentTheme]["comment"]);
+        while (commentMatchIterator.hasNext()) {
+            QRegularExpressionMatch match = commentMatchIterator.next();
+            if (match.hasMatch()) {
+                setFormat(match.capturedStart(), match.capturedLength(), commentFormat);
+            }
+        }
+    } catch (const std::exception& e) {
+        qDebug() << "高亮处理异常:" << e.what();
+    }
+}
+
+void SqlHighlighter::setupHighlightingRules()
+{
+    highlightingRules.clear();
+    
+    // 关键字高亮
+    QTextCharFormat keywordFormat;
+    keywordFormat.setForeground(themes[currentTheme]["keyword"]);
+    keywordFormat.setFontWeight(QFont::Bold);
+    
+    // 添加SQL关键字规则
+    for (const QString &keyword : keywords) {
+        HighlightingRule rule;
+        rule.pattern = QRegularExpression("\\b" + keyword + "\\b", QRegularExpression::CaseInsensitiveOption);
+        rule.format = keywordFormat;
+        highlightingRules.append(rule);
+    }
+    
+    // 添加自定义关键字规则
+    QTextCharFormat customKeywordFormat;
+    customKeywordFormat.setForeground(themes[currentTheme]["custom"]);
+    customKeywordFormat.setFontWeight(QFont::Bold);
+    
+    for (const QString &keyword : customKeywords) {
+        HighlightingRule rule;
+        rule.pattern = QRegularExpression("\\b" + keyword + "\\b", QRegularExpression::CaseInsensitiveOption);
+        rule.format = customKeywordFormat;
+        highlightingRules.append(rule);
+    }
+    
+    // 函数高亮
+    QTextCharFormat functionFormat;
+    functionFormat.setForeground(themes[currentTheme]["function"]);
+    functionFormat.setFontItalic(true);
+    
+    HighlightingRule functionRule;
+    functionRule.pattern = QRegularExpression("\\b[A-Za-z0-9_]+(?=\\()");
+    functionRule.format = functionFormat;
+    highlightingRules.append(functionRule);
+    
+    // 数字高亮
+    QTextCharFormat numberFormat;
+    numberFormat.setForeground(themes[currentTheme]["number"]);
+    
+    HighlightingRule numberRule;
+    numberRule.pattern = QRegularExpression("\\b\\d+\\b");
+    numberRule.format = numberFormat;
+    highlightingRules.append(numberRule);
+}
+
+void SqlHighlighter::setupThemes()
+{
+    // 浅色主题
+    QMap<QString, QColor> lightTheme;
+    lightTheme["keyword"] = QColor(0, 0, 255);      // 蓝色
+    lightTheme["function"] = QColor(128, 0, 128);   // 紫色
+    lightTheme["string"] = QColor(0, 128, 0);       // 绿色
+    lightTheme["comment"] = QColor(128, 128, 128);  // 灰色
+    lightTheme["number"] = QColor(255, 0, 0);       // 红色
+    lightTheme["custom"] = QColor(0, 128, 128);     // 青色
+    
+    // 深色主题
+    QMap<QString, QColor> darkTheme;
+    darkTheme["keyword"] = QColor(0, 191, 255);     // 浅蓝色
+    darkTheme["function"] = QColor(255, 128, 255);  // 粉色
+    darkTheme["string"] = QColor(144, 238, 144);    // 浅绿色
+    darkTheme["comment"] = QColor(192, 192, 192);   // 银色
+    darkTheme["number"] = QColor(255, 128, 128);    // 浅红色
+    darkTheme["custom"] = QColor(0, 255, 255);      // 黄色
+    
+    // 添加主题
+    themes["Light"] = lightTheme;
+    themes["Dark"] = darkTheme;
+} 

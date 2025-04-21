@@ -31,6 +31,7 @@
 #include "gncdblib/include/gncdb.h"
 #include "database/dbmanager.h"
 #include "database/sqlresult.h"
+#include "SqlHighlighter.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -53,6 +54,11 @@ private slots:
     void onConnectDB();
     void onDisconnectDB();
     void onExecuteSQL();
+    void onExecuteCurrentLine();
+    void onFormatSQL();
+    void onOpenSQLScript();
+    void onSaveSQLScript();
+    void onSaveAsSQLScript();
     void onShowTables();
     void onTableSelected(QTreeWidgetItem *item, int column);
     void onRefreshTables();
@@ -122,8 +128,12 @@ private:
     // 当前状态
     QString currentTable;
     QStringList currentColumnNames;
+    QString currentSQLFile;  // 当前打开的SQL文件路径
 
     QTableWidget *sqlResultDisplay;  // SQL结果显示表格
+    
+    // SQL高亮器
+    SqlHighlighter *sqlHighlighter;
 
     void initUI();
     void initConnections();
@@ -135,6 +145,7 @@ private:
     void executeInsertSQL(const QString &tableName, const QStringList &values);
     void executeUpdateSQL(const QString &tableName, const QStringList &values, int rowIndex, const QMap<int, FieldType> &columnFieldTypes);
     void executeDeleteSQL(const QString &tableName, int rowIndex);
+    void executeSQLStatement(const QString &sql);  // 执行SQL语句的辅助函数
     FieldType getFieldTypeFromString(const QString &typeStr);
     QString getFieldTypeName(int typeId);
     void loadTableColumns(QTreeWidgetItem *tableItem);

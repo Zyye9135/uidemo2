@@ -19,6 +19,10 @@
 #include <QCursor>
 #include <QSplitter>
 #include <QApplication>
+#include <QTextBlock>
+#include <QRegularExpression>
+#include <QTextStream>
+#include <QTimer>
 
 // 定义一个结构体来存储表名
 struct TableInfo {
@@ -107,14 +111,31 @@ MainWindow::MainWindow(QWidget *parent)
     , statusBar(nullptr)
     , ddlEditor(nullptr)
     , sqlResultDisplay(nullptr)
+    , sqlHighlighter(nullptr)
 {
     ui->setupUi(this);
     initUI();
+    
+    // 初始化SQL高亮器
+    if (sqlEditor && sqlEditor->document()) {
+        sqlHighlighter = new SqlHighlighter(sqlEditor->document());
+        if (sqlHighlighter) {
+            sqlHighlighter->setTheme("Light");
+            sqlHighlighter->addCustomKeywords({"CUSTOM_FUNCTION", "SPECIAL_TABLE"});
+        }
+    }
+    
     initConnections();
 }
 
 MainWindow::~MainWindow()
 {
+    // 确保在主线程中删除高亮器
+    if (sqlHighlighter) {
+        delete sqlHighlighter;
+        sqlHighlighter = nullptr;
+    }
+    
     if (db) {
         GNCDB_close(&db);
         db = nullptr;
@@ -166,6 +187,20 @@ void MainWindow::initUI()
     
     // SQL菜单
     sqlMenu = menuBar->addMenu(tr("SQL(&S)"));
+    QAction *executeAction = sqlMenu->addAction(tr("执行"), this, &MainWindow::onExecuteSQL);
+    executeAction->setShortcut(QKeySequence("Ctrl+Return"));
+    QAction *executeLineAction = sqlMenu->addAction(tr("执行当前行"), this, &MainWindow::onExecuteCurrentLine);
+    executeLineAction->setShortcut(QKeySequence("Ctrl+L"));
+    sqlMenu->addSeparator();
+    QAction *formatAction = sqlMenu->addAction(tr("格式化SQL"), this, &MainWindow::onFormatSQL);
+    formatAction->setShortcut(QKeySequence("Ctrl+F"));
+    sqlMenu->addSeparator();
+    QAction *openScriptAction = sqlMenu->addAction(tr("打开SQL脚本"), this, &MainWindow::onOpenSQLScript);
+    openScriptAction->setShortcut(QKeySequence("Ctrl+O"));
+    QAction *saveScriptAction = sqlMenu->addAction(tr("保存SQL脚本"), this, &MainWindow::onSaveSQLScript);
+    saveScriptAction->setShortcut(QKeySequence("Ctrl+S"));
+    QAction *saveAsScriptAction = sqlMenu->addAction(tr("SQL脚本另存为"), this, &MainWindow::onSaveAsSQLScript);
+    saveAsScriptAction->setShortcut(QKeySequence("Ctrl+Shift+S"));
     
     // 事务菜单
     transMenu = menuBar->addMenu(tr("事务(&X)"));
@@ -251,6 +286,14 @@ void MainWindow::initUI()
     tableTree = new QTreeWidget(mainSplitter);
     tableTree->setHeaderLabel("数据库表");
     tableTree->setContextMenuPolicy(Qt::CustomContextMenu);
+    
+    // 设置树形图的样式
+    tableTree->setStyleSheet(
+        "QTreeWidget::item:selected { background-color:rgb(64, 64, 255); color: white; }"  // 选中时为蓝色背景，白色文字
+        "QTreeWidget::item { background-color: #E6E6E6; }"                                 // 默认浅灰背景
+        "QTreeWidget::item:has-children { color: black; }"                                 // 表名为黑色
+        "QTreeWidget::item:!has-children { color: #404040; }"                              // 属性为深灰色
+    );
     
     // 创建数据表格
     dataTable = new QTableWidget(this);
@@ -342,6 +385,21 @@ void MainWindow::initConnections()
         onTableSelected(item, 0);
     });
 
+    // 添加焦点变化事件处理
+    connect(qApp, &QApplication::focusChanged, this, [this](QWidget *old, QWidget *now) {
+        if (old == tableTree && now != tableTree) {
+            QTreeWidgetItem *currentItem = tableTree->currentItem();
+            if (currentItem) {
+                currentItem->setSelected(false);
+            }
+        } else if (now == tableTree) {
+            QTreeWidgetItem *currentItem = tableTree->currentItem();
+            if (currentItem) {
+                currentItem->setSelected(true);
+            }
+        }
+    });
+
     // 添加展开事件处理
     connect(tableTree, &QTreeWidget::itemExpanded, this, [this](QTreeWidgetItem *item) {
         // 无论是否有临时子节点，都尝试加载列信息
@@ -352,13 +410,37 @@ void MainWindow::initConnections()
     
     connect(dataTable, &QTableWidget::customContextMenuRequested, this, &MainWindow::showTableContextMenu);
     
-    // 连接SQL执行按钮的点击事件
-    QPushButton *executeButton = ui->executeButton;
-    if (executeButton) {
-        qDebug() << "找到执行按钮，正在连接信号...";
-        connect(executeButton, &QPushButton::clicked, this, &MainWindow::onExecuteSQL);
+    // 连接SQL编辑器的文本变化事件，使用定时器延迟处理
+    if (sqlEditor) {
+        qDebug() << "找到SQL编辑器，正在连接文本变化信号...";
+        
+        // 创建定时器用于延迟高亮处理
+        QTimer *highlightTimer = new QTimer(this);
+        highlightTimer->setSingleShot(true);
+        highlightTimer->setInterval(300); // 300ms延迟
+        
+        // 连接文本变化信号到定时器
+        connect(sqlEditor, &QTextEdit::textChanged, [this, highlightTimer]() {
+            if (highlightTimer && !highlightTimer->isActive()) {
+                highlightTimer->start();
+            }
+        });
+        
+        // 连接定时器超时信号到高亮处理
+        connect(highlightTimer, &QTimer::timeout, [this]() {
+            if (sqlHighlighter && sqlEditor && sqlEditor->document()) {
+                //qDebug() << "重新应用SQL高亮";
+                try {
+                    sqlHighlighter->rehighlight();
+                } catch (const std::exception& e) {
+                    qDebug() << "高亮处理异常:" << e.what();
+                } catch (...) {
+                    qCritical() << "未知高亮异常";
+                }
+            }
+        });
     } else {
-        qDebug() << "警告：未找到执行按钮！";
+        qDebug() << "警告：未找到SQL编辑器！";
     }
 }
 
@@ -1414,8 +1496,14 @@ void MainWindow::closeEvent(QCloseEvent *event)
 
 void MainWindow::onShowTreeView()
 {
-    // 树形图功能暂时不实现
-    qDebug() << "树形图功能尚未实现";
+    // 设置焦点到树形图
+    tableTree->setFocus();
+    
+    // 恢复之前选中的项
+    QTreeWidgetItem *currentItem = tableTree->currentItem();
+    if (currentItem) {
+        currentItem->setSelected(true);
+    }
 }
 
 void MainWindow::onShowDatabaseTab()
@@ -1616,4 +1704,200 @@ void MainWindow::onZoomOut()
             widget->setFont(currentFont);
         }
     }
+}
+
+void MainWindow::onExecuteCurrentLine()
+{
+    if (!sqlEditor) return;
+    
+    // 获取当前光标位置
+    QTextCursor cursor = sqlEditor->textCursor();
+    int currentLine = cursor.blockNumber();
+    
+    // 获取当前行的文本
+    QString currentLineText = sqlEditor->document()->findBlockByLineNumber(currentLine).text().trimmed();
+    
+    if (currentLineText.isEmpty()) {
+        showError("当前行为空，无法执行");
+        return;
+    }
+    
+    // 执行当前行的SQL
+    executeSQLStatement(currentLineText);
+}
+
+void MainWindow::onFormatSQL()
+{
+    if (!sqlEditor) return;
+    
+    QString sql = sqlEditor->toPlainText();
+    if (sql.isEmpty()) {
+        showError("SQL语句为空，无法格式化");
+        return;
+    }
+    
+    // 简单的SQL格式化规则
+    // 1. 将关键字转换为大写
+    QStringList keywords = {"SELECT", "FROM", "WHERE", "GROUP BY", "ORDER BY", "HAVING", 
+                           "INSERT", "INTO", "VALUES", "UPDATE", "SET", "DELETE", 
+                           "CREATE", "TABLE", "ALTER", "DROP", "INDEX", "VIEW"};
+    
+    for (const QString &keyword : keywords) {
+        QRegularExpression regex(QString("\\b%1\\b").arg(keyword), QRegularExpression::CaseInsensitiveOption);
+        sql.replace(regex, keyword);
+    }
+    
+    // 2. 在关键字前添加换行
+    for (const QString &keyword : keywords) {
+        if (keyword != "SELECT" && keyword != "INSERT" && keyword != "UPDATE" && keyword != "DELETE") {
+            QRegularExpression regex(QString("\\b%1\\b").arg(keyword), QRegularExpression::CaseInsensitiveOption);
+            sql.replace(regex, QString("\n%1").arg(keyword));
+        }
+    }
+    
+    // 3. 在逗号后添加空格
+    sql.replace(QRegularExpression(",\\s*"), ", ");
+    
+    // 4. 在括号前后添加空格
+    sql.replace(QRegularExpression("\\(\\s*"), "( ");
+    sql.replace(QRegularExpression("\\s*\\)"), " )");
+    
+    // 更新编辑器内容
+    sqlEditor->setPlainText(sql);
+}
+
+void MainWindow::onOpenSQLScript()
+{
+    if (!sqlEditor) return;
+    
+    QString fileName = QFileDialog::getOpenFileName(this,
+        tr("打开SQL脚本"),
+        QDir::currentPath(),
+        tr("SQL文件 (*.sql);;所有文件 (*.*)"));
+        
+    if (fileName.isEmpty()) {
+        return;
+    }
+    
+    QFile file(fileName);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        showError("无法打开文件");
+        return;
+    }
+    
+    // 使用QTextStream读取文件，Qt 6默认使用UTF-8编码
+    QTextStream in(&file);
+    sqlEditor->setPlainText(in.readAll());
+    file.close();
+}
+
+void MainWindow::onSaveSQLScript()
+{
+    if (!sqlEditor) return;
+    
+    // 如果当前没有打开的文件，则调用另存为
+    if (currentSQLFile.isEmpty()) {
+        onSaveAsSQLScript();
+        return;
+    }
+    
+    QFile file(currentSQLFile);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        showError("无法保存文件");
+        return;
+    }
+    
+    // 使用QTextStream写入文件，Qt 6默认使用UTF-8编码
+    QTextStream out(&file);
+    out << sqlEditor->toPlainText();
+    file.close();
+}
+
+void MainWindow::onSaveAsSQLScript()
+{
+    if (!sqlEditor) return;
+    
+    QString fileName = QFileDialog::getSaveFileName(this,
+        tr("保存SQL脚本"),
+        QDir::currentPath(),
+        tr("SQL文件 (*.sql);;所有文件 (*.*)"));
+        
+    if (fileName.isEmpty()) {
+        return;
+    }
+    
+    // 确保文件有.sql扩展名
+    if (!fileName.endsWith(".sql", Qt::CaseInsensitive)) {
+        fileName += ".sql";
+    }
+    
+    QFile file(fileName);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        showError("无法保存文件");
+        return;
+    }
+    
+    // 使用QTextStream写入文件，Qt 6默认使用UTF-8编码
+    QTextStream out(&file);
+    out << sqlEditor->toPlainText();
+    file.close();
+    
+    // 更新当前文件路径
+    currentSQLFile = fileName;
+}
+
+// 辅助函数：执行SQL语句
+void MainWindow::executeSQLStatement(const QString &sql)
+{
+    if (!db) {
+        showError("请先连接数据库");
+        return;
+    }
+    
+    if (sql.isEmpty()) {
+        showError("SQL语句为空");
+        return;
+    }
+    
+    // 创建SQL结果对象
+    SQLResult result;
+    
+    // 执行SQL语句
+    char *errmsg = nullptr;
+    qDebug() << "调用GNCDB_exec...";
+    int rc = GNCDB_exec(db, sql.toUtf8().constData(), sqlResultCallback, &result, &errmsg);
+    qDebug() << "GNCDB_exec返回码:" << rc;
+    
+    if (rc != 0) {
+        QString errorMsg = QString("SQL执行失败: %1").arg(rc);
+        qDebug() << "错误代码:" << rc;
+        showError(errorMsg);
+        if (errmsg) {
+            free(errmsg);
+        }
+        return;
+    }
+    
+    // 清空并设置结果表格
+    sqlResultDisplay->clear();
+    sqlResultDisplay->setRowCount(0);
+    sqlResultDisplay->setColumnCount(result.columnNames.size());
+    sqlResultDisplay->setHorizontalHeaderLabels(result.columnNames);
+    
+    // 设置行数据
+    sqlResultDisplay->setRowCount(result.rows.size());
+    for (int row = 0; row < result.rows.size(); row++) {
+        const QStringList &rowData = result.rows[row];
+        for (int col = 0; col < rowData.size(); col++) {
+            QTableWidgetItem *item = new QTableWidgetItem(rowData[col]);
+            sqlResultDisplay->setItem(row, col, item);
+        }
+    }
+    
+    // 自动调整列宽
+    sqlResultDisplay->resizeColumnsToContents();
+    
+    // 更新状态栏
+    QString statusMsg = QString("查询完成，返回 %1 行数据").arg(result.rows.size());
+    statusBar->showMessage(statusMsg);
 }

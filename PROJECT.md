@@ -1,13 +1,94 @@
 # GNCDB UI 项目文档
 
 ## 项目概述
-GNCDB UI 是一个基于 Qt6 的数据库管理工具，用于与 GNCDB 数据库进行交互。项目使用 C++ 开发，采用 CMake 构建系统。
+GNCDB UI 是一个基于Qt的数据库管理工具，提供图形化界面来管理GNCDB数据库。该工具支持数据库的创建、表管理、SQL查询执行以及数据可视化等功能。
+
+## 功能特性
+
+### 数据库管理
+- 新建数据库
+- 打开现有数据库
+- 断开数据库连接
+- 数据库状态显示
+- 数据库文件备份
+
+### 表管理
+- 创建新表
+- 删除表
+- 清空表
+- 表结构查看
+- 表数据管理（增删改查）
+- 表属性编辑
+
+### SQL功能
+- SQL编辑器（支持语法高亮）
+- SQL执行
+- 查询结果显示
+- SQL脚本的保存和加载
+- SQL格式化
+- 执行当前行SQL
+
+### 界面特性
+- 树形结构显示数据库表
+- 表数据网格显示
+- DDL视图
+- 多标签页界面
+- 可调整的分割视图
+- 自定义上下文菜单
+
+### 树形图样式
+- 表名显示为黑色
+- 属性显示为深灰色
+- 选中项背景为蓝色(rgb(64, 64, 255))
+- 未选中项背景为浅灰色(#E6E6E6)
+- 焦点管理：
+  - 获得焦点时显示蓝色背景
+  - 失去焦点时显示浅灰色背景
+  - 通过"视图"菜单的"树形图"选项可以恢复焦点
 
 ## 技术栈
-- C++17
 - Qt 6.8.2
+- C++
+- GNCDB数据库引擎
+- CMake构建系统
+
+## 开发环境
+- Linux
+- GCC
+- Qt Creator
 - CMake 3.16+
-- GNCDB 数据库库
+
+## 构建说明
+1. 确保已安装Qt 6.8.2或更高版本
+2. 克隆项目代码
+3. 使用Qt Creator打开项目或使用CMake构建
+4. 构建并运行
+
+## 使用说明
+1. 启动程序
+2. 通过"文件"菜单创建新数据库或打开现有数据库
+3. 使用树形图浏览数据库表
+4. 使用SQL编辑器执行查询
+5. 使用数据网格管理表数据
+6. 通过"对象"菜单进行表操作
+7. 使用"视图"菜单切换不同的视图
+
+## 注意事项
+- 确保有足够的磁盘空间
+- 建议定期备份数据库文件
+- 执行危险操作前请确认
+- 大型数据库操作可能需要较长时间
+- 建议在操作前先测试SQL语句
+
+## 贡献指南
+1. Fork项目
+2. 创建特性分支
+3. 提交更改
+4. 推送到分支
+5. 创建Pull Request
+
+## 许可证
+[待定]
 
 ## 项目结构
 ```
@@ -19,8 +100,11 @@ gncdb_ui2/
 │   └── tabledialog.*  # 表操作对话框
 ├── gncdblib/          # GNCDB 核心库
 │   ├── include/       # GNCDB 头文件
-│   └── lib/          # GNCDB 静态库
-└── main.*            # 主程序入口
+│   └── lib/           # GNCDB 静态库
+├── mainwindow.*       # 主窗口类
+├── main.cpp           # 主程序入口
+├── SqlHighlighter.*   # Sql语法高亮器
+└── CMakeLists.txt     # CMake构建配置
 ```
 
 ## 关键组件
@@ -31,6 +115,7 @@ gncdb_ui2/
   - 数据库连接管理
   - SQL 查询执行
   - 结果集处理
+  - 错误处理
 
 ### 2. 主窗口 (MainWindow)
 - 位置：`mainwindow.*`
@@ -39,6 +124,9 @@ gncdb_ui2/
   - 表格显示和管理
   - SQL 查询编辑器
   - 数据操作界面
+  - 树形图管理
+  - 菜单和工具栏
+  - 状态栏信息
 
 ### 3. 表对话框 (TableDialog)
 - 位置：`ui/tabledialog.*`
@@ -46,6 +134,13 @@ gncdb_ui2/
   - 创建表界面
   - 表结构定义
   - 字段类型设置
+  - 主键设置
+
+### 4. SQL高亮器 (SqlHighlighter)
+- 功能：
+  - SQL语法高亮
+  - 主题设置
+  - 自定义关键字支持
 
 ## 主要功能
 1. 数据库连接管理
@@ -53,6 +148,8 @@ gncdb_ui2/
 3. 数据的增删改查
 4. SQL 查询执行
 5. 表结构查看
+6. 树形图导航
+7. 多视图切换
 
 ## 开发环境设置
 1. 安装依赖：
@@ -79,6 +176,8 @@ gncdb_ui2/
 3. 数据库操作通过 DBManager 类进行封装
 4. 主要的用户界面逻辑在 MainWindow 类中实现
 5. 表操作相关的界面在 TableDialog 类中实现
+6. SQL高亮通过 SqlHighlighter 类实现
+7. 树形图的样式和焦点管理在 MainWindow 类中处理
 
 ## 常见任务代码示例
 1. 创建新的数据库连接：
@@ -103,6 +202,16 @@ void MainWindow::addNewComponent() {
 }
 ```
 
+4. 设置树形图样式：
+```cpp
+tableTree->setStyleSheet(
+    "QTreeWidget::item:selected { background-color:rgb(64, 64, 255); color: white; }"
+    "QTreeWidget::item { background-color: #E6E6E6; }"
+    "QTreeWidget::item:has-children { color: black; }"
+    "QTreeWidget::item:!has-children { color: #404040; }"
+);
+```
+
 ## 调试提示
 1. 使用 QDebug 输出调试信息：
 ```cpp
@@ -116,6 +225,17 @@ if (!dbManager->isOpen()) {
 }
 ```
 
+3. 检查树形图焦点：
+```cpp
+connect(qApp, &QApplication::focusChanged, this, [this](QWidget *old, QWidget *now) {
+    if (old == tableTree && now != tableTree) {
+        // 失去焦点的处理
+    } else if (now == tableTree) {
+        // 获得焦点的处理
+    }
+});
+```
+
 ## 项目约定
 1. 命名规范：
    - 类名使用大驼峰：`MainWindow`, `DBManager`
@@ -126,3 +246,15 @@ if (!dbManager->isOpen()) {
    - 界面相关代码放在 ui/ 目录
    - 数据库相关代码放在 database/ 目录
    - 共用的工具类和函数放在 utils/ 目录（如果需要）
+
+3. 注释规范：
+   - 类和方法使用文档注释
+   - 复杂逻辑使用行内注释
+   - 使用中文注释提高可读性
+
+## 未来计划
+1. 添加数据库备份和恢复功能
+2. 实现数据库迁移工具
+3. 添加数据导入导出功能
+4. 优化大数据量处理性能
+5. 添加更多数据库类型支持

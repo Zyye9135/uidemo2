@@ -56,6 +56,8 @@ set(PROJECT_SOURCES
     database/dbmanager.cpp
     database/dbmanager.h
     database/sqlresult.h
+    SqlHighlighter.cpp
+    SqlHighlighter.h
     resources/resources.qrc
     ui/tabledialog.cpp
     ui/tabledialog.h
