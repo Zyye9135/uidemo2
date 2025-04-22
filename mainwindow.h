@@ -135,6 +135,11 @@ private:
     // SQL高亮器
     SqlHighlighter *sqlHighlighter;
 
+    // 状态栏标签
+    QLabel *dbNameLabel;
+    QLabel *tableNameLabel;
+    QLabel *dbPathLabel;
+
     void initUI();
     void initConnections();
     void updateTableList();

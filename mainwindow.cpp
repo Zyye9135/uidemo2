@@ -112,6 +112,9 @@ MainWindow::MainWindow(QWidget *parent)
     , ddlEditor(nullptr)
     , sqlResultDisplay(nullptr)
     , sqlHighlighter(nullptr)
+    , dbNameLabel(nullptr)
+    , tableNameLabel(nullptr)
+    , dbPathLabel(nullptr)
 {
     ui->setupUi(this);
     initUI();
@@ -325,6 +328,18 @@ void MainWindow::initUI()
     ddlLayout->addWidget(ddlEditor);
     rightTabWidget->addTab(ddlTab, "DDL");
     
+    // 为DDL编辑器添加高亮器
+    SqlHighlighter *ddlHighlighter = new SqlHighlighter(ddlEditor->document());
+    ddlHighlighter->setTheme("Light");
+    
+    // 设计标签页
+    QWidget *designTab = new QWidget();
+    QVBoxLayout *designLayout = new QVBoxLayout(designTab);
+    QTextEdit *designEditor = new QTextEdit();
+    designEditor->setReadOnly(true);
+    designLayout->addWidget(designEditor);
+    rightTabWidget->addTab(designTab, "设计");
+    
     // SQL标签页
     QWidget *sqlTab = new QWidget();
     QHBoxLayout *sqlLayout = new QHBoxLayout(sqlTab);  // 改为水平布局
@@ -367,7 +382,18 @@ void MainWindow::initUI()
     // 状态栏
     statusBar = new QStatusBar(this);
     setStatusBar(statusBar);
-    statusBar->showMessage("未连接数据库");
+    
+    // 创建状态栏标签
+    dbNameLabel = new QLabel("数据库: 未连接", this);
+    tableNameLabel = new QLabel("表: 未选择", this);
+    dbPathLabel = new QLabel("路径: 未设置", this);
+    
+    // 添加分隔符
+    statusBar->addPermanentWidget(dbNameLabel);
+    statusBar->addPermanentWidget(new QLabel(" | ", this));
+    statusBar->addPermanentWidget(tableNameLabel);
+    statusBar->addPermanentWidget(new QLabel(" | ", this));
+    statusBar->addPermanentWidget(dbPathLabel);
     
     // 初始化其他成员变量
     currentTable.clear();
@@ -487,6 +513,8 @@ void MainWindow::onConnectDB()
     
     if ((rc = GNCDB_open(&db, dbPathChar)) == 0) {
         statusBar->showMessage("数据库连接成功");
+        dbNameLabel->setText(QString("数据库: %1").arg(QFileInfo(fileName).baseName()));
+        dbPathLabel->setText(QString("路径: %1").arg(fileName));
         updateTableList();
     } else {
         QString errorMsg = QString("数据库连接失败，错误代码: %1，文件路径: %2").arg(rc).arg(fileName);
@@ -518,6 +546,9 @@ void MainWindow::onDisconnectDB()
     sqlEditor->clear();
     
     statusBar->showMessage("未连接数据库");
+    dbNameLabel->setText("数据库: 未连接");
+    tableNameLabel->setText("表: 未选择");
+    dbPathLabel->setText("路径: 未设置");
 }
 
 void MainWindow::onExecuteSQL()
@@ -584,6 +615,7 @@ void MainWindow::onTableSelected(QTreeWidgetItem *item, int /*column*/)
     if (!db || !item || !dataTable) return;
     
     currentTable = item->text(0);
+    tableNameLabel->setText(QString("表: %1").arg(currentTable));
     qDebug() << "选中表:" << currentTable;
     
     // 断开之前的信号连接
@@ -1462,6 +1494,8 @@ void MainWindow::onNewDatabase()
     
     if ((rc = GNCDB_open(&db, dbPathChar)) == 0) {
         statusBar->showMessage("数据库创建成功");
+        dbNameLabel->setText(QString("数据库: %1").arg(QFileInfo(fileName).baseName()));
+        dbPathLabel->setText(QString("路径: %1").arg(fileName));
         updateTableList();
     } else {
         QString errorMsg = QString("数据库创建失败，错误代码: %1，文件路径: %2").arg(rc).arg(fileName);
