@@ -28,6 +28,8 @@
 #include <QToolBar>
 #include <QToolButton>
 #include <QCloseEvent>
+#include <QStyledItemDelegate>
+#include <QGroupBox>
 #include "gncdblib/include/gncdb.h"
 #include "database/dbmanager.h"
 #include "database/sqlresult.h"
@@ -38,6 +40,37 @@ namespace Ui {
 class MainWindow;
 }
 QT_END_NAMESPACE
+
+class SQLTableDelegate : public QStyledItemDelegate {
+    Q_OBJECT
+public:
+    SQLTableDelegate(QObject *parent = nullptr) : QStyledItemDelegate(parent) {}
+    
+    QWidget *createEditor(QWidget *parent, const QStyleOptionViewItem &option, const QModelIndex &index) const override {
+        qDebug() << "创建编辑器";
+        return QStyledItemDelegate::createEditor(parent, option, index);
+    }
+    
+    void setEditorData(QWidget *editor, const QModelIndex &index) const override {
+        qDebug() << "设置编辑器数据";
+        QStyledItemDelegate::setEditorData(editor, index);
+    }
+    
+    void setModelData(QWidget *editor, QAbstractItemModel *model, const QModelIndex &index) const override {
+        qDebug() << "设置模型数据";
+        QString oldValue = model->data(index, Qt::DisplayRole).toString();
+        QStyledItemDelegate::setModelData(editor, model, index);
+        QString newValue = model->data(index, Qt::DisplayRole).toString();
+        
+        if (oldValue != newValue) {
+            qDebug() << "值已改变，触发更新";
+            emit const_cast<SQLTableDelegate*>(this)->dataChanged(index, newValue, oldValue);
+        }
+    }
+    
+signals:
+    void dataChanged(const QModelIndex &index, const QString &newValue, const QString &oldValue);
+};
 
 class MainWindow : public QMainWindow
 {
@@ -67,31 +100,35 @@ private slots:
     void onAddRow();
     void onEditRow();
     void onDeleteRow();
-    //void onRenameTable();  // 新增：重命名表
-    void onClearTable();   // 清空表
+    void onClearTable();
     void showTableContextMenu(const QPoint &pos);
     void showCreateTableDialog();
-    void onFileAction();       // 文件操作
-    void onViewAction();       // 视图操作
-    void onDatabaseAction();   // 数据库操作
-    void onSQLAction();        // SQL操作
-    void onTransactionAction(); // 事务操作
-    void onToolsAction();      // 工具操作
-    void onHelpAction();       // 帮助操作
-    void onObjectAction();     // 对象操作
-    void onTableManagementAction(); // 表管理操作
-    void onNewDatabase();      // 新建数据库
-    void onExit();             // 退出程序
-    void updateDDLView(const QString &tableName);  // 更新DDL视图
-    
-    // 新增视图菜单相关的槽函数
-    void onShowTreeView();     // 显示树形图
-    void onShowDatabaseTab();  // 显示数据库标签
-    void onShowDataTab();      // 显示数据标签
-    void onShowDDLTab();       // 显示DDL标签
-    void onShowSQLTab();       // 显示SQL标签
+    void onFileAction();
+    void onViewAction();
+    void onDatabaseAction();
+    void onSQLAction();
+    void onTransactionAction();
+    void onToolsAction();
+    void onHelpAction();
+    void onObjectAction();
+    void onTableManagementAction();
+    void onNewDatabase();
+    void onExit();
+    void updateDDLView(const QString &tableName);
+    void onShowTreeView();
+    void onShowDatabaseTab();
+    void onShowDataTab();
+    void onShowDDLTab();
+    void onShowSQLTab();
     void onZoomIn();
     void onZoomOut();
+    void onEditSQLResult();
+    void onCellEdited(QTableWidgetItem *item);
+    void onSearchTable();    // 表查找
+    void onSearchColumn();   // 段查找
+    void onSearchValue();    // 数值查找
+    void updateDatabaseInfo(); // 更新数据库信息
+    void onVacuumDatabase(); // 压缩数据库
 
 private:
     Ui::MainWindow *ui;
@@ -107,6 +144,7 @@ private:
     QWidget *databaseTab;
     QStatusBar *statusBar;
     QTextEdit *ddlEditor;  // DDL编辑器
+    QLabel *dbTitleLabel;  // 数据库标题标签
     
     // 菜单相关
     QMenuBar *menuBar;
@@ -116,7 +154,7 @@ private:
     QMenu *tableMenu;
     QMenu *viewMenu;
     QMenu *sqlMenu;
-    QMenu *transMenu;
+    QMenu *searchMenu;
     QMenu *toolsMenu;
     QMenu *helpMenu;
     
@@ -154,6 +192,19 @@ private:
     FieldType getFieldTypeFromString(const QString &typeStr);
     QString getFieldTypeName(int typeId);
     void loadTableColumns(QTreeWidgetItem *tableItem);
+};
+
+// 添加TreeItemDelegate类声明
+class TreeItemDelegate : public QStyledItemDelegate {
+    Q_OBJECT
+public:
+    explicit TreeItemDelegate(QObject *parent = nullptr);
+    void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override;
+    QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const override;
+private:
+    QIcon databaseIcon;
+    QIcon tableIcon;
+    QIcon columnIcon;
 };
 
 #endif // MAINWINDOW_H

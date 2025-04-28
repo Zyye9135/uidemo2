@@ -34,7 +34,7 @@
             ],
             "preLaunchTask": "build",
             "miDebuggerPath": "/usr/bin/gdb",
-            "visualizerFile": "/home/zyy/.config/Cursor/User/workspaceStorage/5e76cc0e39ab64135fbf788693653518/tonka3000.qtvsctools/qt.natvis.xml"
+            "visualizerFile": "/home/zyy/.config/Cursor/User/workspaceStorage/54d69266829201c0072327efc24b4b37/tonka3000.qtvsctools/qt.natvis.xml"
         }
     ],
     "environment": [

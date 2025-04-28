@@ -39,12 +39,15 @@ find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Sql)
 add_subdirectory(database)
 add_subdirectory(ui)
 add_subdirectory(gncdblib)  # 移到前面确保库先被构建
+add_subdirectory(rc2msg)    # 添加 rc2msg 子目录
+add_subdirectory(vacuum)    # 添加 vacuum 子目录
 
 # 包含头文件目录
 include_directories(
     ${PROJECT_SOURCE_DIR}
     ${PROJECT_SOURCE_DIR}/database
     ${PROJECT_SOURCE_DIR}/ui
+    ${PROJECT_SOURCE_DIR}/vacuum/include
 )
 
 # 定义源文件和资源
@@ -80,6 +83,9 @@ target_link_libraries(gncdb_ui2 PRIVATE
     gncdb
     database
     ui
+    rc2msg
+    vacuum
+    "${CMAKE_SOURCE_DIR}/vacuum/lib/libvacuum.a"
 )
 
 # 设置调试信息

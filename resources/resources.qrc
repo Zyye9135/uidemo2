@@ -9,5 +9,19 @@
         <file>icons/zoom_in.png</file>
         <file>icons/zoom_out.png</file>
         <file>icons/exit.png</file>
+        <file>icons/cached.png</file>
+        <file>icons/first_record.png</file>
+        <file>icons/prev_record.png</file>
+        <file>icons/next_record.png</file>
+        <file>icons/last_record.png</file>
+        <file>icons/new_record.png</file>
+        <file>icons/delete_record.png</file>
+        <file>icons/create_table.png</file>
+        <file>icons/drop_table.png</file>
+        <file>icons/execute.png</file>
+        <file>icons/database_logo.png</file>
+        <file>icons/table_logo.png</file>
+        <file>icons/column_logo.png</file>
+        <file>icons/edit.png</file>
     </qresource>
 </RCC>
