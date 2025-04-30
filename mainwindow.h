@@ -1,3 +1,4 @@
+
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
@@ -122,7 +123,7 @@ private slots:
     void onShowSQLTab();
     void onZoomIn();
     void onZoomOut();
-    void onEditSQLResult();
+    //void onEditSQLResult();
     void onCellEdited(QTableWidgetItem *item);
     void onSearchTable();    // 表查找
     void onSearchColumn();   // 段查找

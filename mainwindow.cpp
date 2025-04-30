@@ -26,8 +26,8 @@
 #include <QTimer>
 #include <QToolButton>
 #include <QRadioButton>
-#include <QButtonGroup>  // 添加QButtonGroup头文件
-#include <QSizePolicy>  // 添加QSizePolicy头文件
+#include <QButtonGroup>
+#include <QSizePolicy>
 #include <QStyledItemDelegate>
 #include <QPainter>
 #include "rc2msg.h"
@@ -307,29 +307,26 @@ void MainWindow::initUI()
     mainToolBar->setFloatable(true);
     
     // 添加调试信息
-    qDebug() << "Resource paths:" << QDir(":/").entryList();
-    qDebug() << "Icon paths:" << QDir(":/icons").entryList();
+    //qDebug() << "Resource paths:" << QDir(":/").entryList();
+    //qDebug() << "Icon paths:" << QDir(":/icons").entryList();
     
     // 设置工具栏按钮大小
-    mainToolBar->setIconSize(QSize(16, 16));  // 统一图标大小为16x16像素
+    mainToolBar->setIconSize(QSize(32, 32));  // 统一图标大小为16x16像素
     mainToolBar->setToolButtonStyle(Qt::ToolButtonIconOnly);  // 只显示图标
     
     // 为已存在的动作添加图标
     QIcon openIcon(":/icons/open_database.png");
-    qDebug() << "Open icon is null:" << openIcon.isNull();
     openDbAction->setIcon(openIcon);
     openDbAction->setStatusTip(tr("打开现有数据库"));
     mainToolBar->addAction(openDbAction);
     
     QIcon newIcon(":/icons/new_database.png");
-    qDebug() << "New icon is null:" << newIcon.isNull();
     newDbAction->setIcon(newIcon);
     newDbAction->setStatusTip(tr("创建新数据库"));
     mainToolBar->addAction(newDbAction);
     
     // 添加断开连接按钮
     QIcon disconnectIcon(":/icons/disconnect.png");
-    qDebug() << "Disconnect icon is null:" << disconnectIcon.isNull();
     QAction *disconnectAction = new QAction(disconnectIcon, tr("断开连接"), this);
     disconnectAction->setStatusTip(tr("断开数据库连接"));
     connect(disconnectAction, &QAction::triggered, this, &MainWindow::onDisconnectDB);
@@ -340,27 +337,23 @@ void MainWindow::initUI()
     
     // 为刷新动作添加图标
     QIcon refreshIcon(":/icons/refresh.png");
-    qDebug() << "Refresh icon is null:" << refreshIcon.isNull();
     refreshAction->setIcon(refreshIcon);
     refreshAction->setStatusTip(tr("刷新表列表"));
     mainToolBar->addAction(refreshAction);
     
     // 为字体缩放动作添加图标
     QIcon zoomInIcon(":/icons/zoom_in.png");
-    qDebug() << "Zoom in icon is null:" << zoomInIcon.isNull();
     zoomInAction->setIcon(zoomInIcon);
     zoomInAction->setStatusTip(tr("增大字体大小"));
     mainToolBar->addAction(zoomInAction);
     
     QIcon zoomOutIcon(":/icons/zoom_out.png");
-    qDebug() << "Zoom out icon is null:" << zoomOutIcon.isNull();
     zoomOutAction->setIcon(zoomOutIcon);
     zoomOutAction->setStatusTip(tr("减小字体大小"));
     mainToolBar->addAction(zoomOutAction);
     
     // 添加退出按钮
     QIcon exitIcon(":/icons/exit.png");
-    qDebug() << "Exit icon is null:" << exitIcon.isNull();
     QAction *toolbarExitAction = new QAction(exitIcon, tr("退出"), this);
     toolbarExitAction->setStatusTip(tr("退出程序"));
     connect(toolbarExitAction, &QAction::triggered, this, &MainWindow::onExit);
@@ -598,7 +591,7 @@ void MainWindow::initUI()
     newRecordBtn->setText("新建记录");
     deleteRecordBtn->setText("删除记录");
     editRecordBtn->setText("编辑记录");  // 设置编辑按钮文本
-    refreshBtn->setText("刷新");
+    refreshBtn->setText("刷新"); 
     
     // 设置图标（预留路径，后续可以替换为实际图标）
     firstRecordBtn->setIcon(QIcon(":/icons/first_record.png"));
@@ -1293,7 +1286,7 @@ void MainWindow::onTableSelected(QTreeWidgetItem *item, int /*column*/)
                 values.append(item ? item->text() : QString());
             }
             
-            executeUpdateSQL(currentTable, values, row, columnFieldTypes);
+            //executeUpdateSQL(currentTable, values, row, columnFieldTypes);
         });
     } else {
         // 处理列项
@@ -1701,23 +1694,75 @@ void MainWindow::onEditRow()
     dialog.setWindowTitle("编辑行");
     QVBoxLayout *layout = new QVBoxLayout(&dialog);
 
-    // 获取列名
-    QStringList columnNames;
-    for (int i = 0; i < dataTable->columnCount(); ++i) {
-        columnNames.append(dataTable->horizontalHeaderItem(i)->text());
+    // 获取表结构信息
+    SQLResult schemaResult;
+    QString schemaSql = QString("SELECT * FROM schema WHERE tableName = '%1' ORDER BY columnIndex").arg(currentTable);
+    char *errmsg = nullptr;
+    int rc = GNCDB_exec(db, schemaSql.toUtf8().constData(), sqlResultCallback, &schemaResult, &errmsg);
+    
+    if (rc != 0) {
+        QString errorMsg = QString("获取表结构失败: %1").arg(Rc2Msg::getErrorMsg(rc, errmsg ? QString(errmsg) : QString()));
+        showError(errorMsg);
+        if (errmsg) free(errmsg);
+        return;
+    }
+
+    // 查找主键列
+    QString primaryKeyColumn;
+    int primaryKeyIndex = -1;
+    FieldType primaryKeyType = FIELDTYPE_INVALID;
+    QString primaryKeyValue;
+    
+    for (int i = 0; i < schemaResult.rows.size(); ++i) {
+        const QStringList &schemaRow = schemaResult.rows[i];
+        if (schemaRow[8] == "1") { // isPrimaryKey
+            primaryKeyColumn = schemaRow[1]; // columnName
+            primaryKeyIndex = i;
+            int colTypeId = schemaRow[4].toInt(); // columnType (编号)
+            QString colTypeStr = getFieldTypeName(colTypeId); // 映射为类型名称
+            primaryKeyType = getFieldTypeFromString(colTypeStr); // 获取列的数据类型
+            primaryKeyValue = rowData[i];
+            break;
+        }
+    }
+
+    if (primaryKeyColumn.isEmpty()) {
+        QMessageBox::critical(this, "错误", "未找到主键列");
+        return;
     }
 
     // 创建编辑控件
     QList<QLineEdit*> edits;
-    for (int i = 0; i < columnNames.size(); ++i) {
+    QMap<int, FieldType> columnFieldTypes; // 用于存储每列的数据类型
+    
+    for (int i = 0; i < schemaResult.rows.size(); ++i) {
+        const QStringList &schemaRow = schemaResult.rows[i];
+        QString columnName = schemaRow[1]; // columnName
+        int colTypeId = schemaRow[4].toInt(); // columnType (编号)
+        QString colTypeStr = getFieldTypeName(colTypeId); // 映射为类型名称
+        FieldType fieldType = getFieldTypeFromString(colTypeStr); // 获取列的数据类型
+
+        // 跳过系统信息列
+        if (columnName == "rowId" || columnName == "createTime" || columnName == "updateTime") {
+            continue;
+        }
+
         QHBoxLayout *rowLayout = new QHBoxLayout();
-        QLabel *label = new QLabel(columnNames[i] + ":", &dialog);
+        QLabel *label = new QLabel(QString("%1 (%2)%3:")
+                                 .arg(columnName)
+                                 .arg(colTypeStr)
+                                 .arg(i == primaryKeyIndex ? " [PK]" : ""), &dialog);
         QLineEdit *edit = new QLineEdit(&dialog);
         edit->setText(rowData[i]);
+        if (i == primaryKeyIndex) {
+            edit->setReadOnly(true); // 主键不可编辑
+            edit->setStyleSheet("background-color: #f0f0f0;"); // 设置灰色背景表示不可编辑
+        }
         rowLayout->addWidget(label);
         rowLayout->addWidget(edit);
         layout->addLayout(rowLayout);
         edits.append(edit);
+        columnFieldTypes[i] = fieldType;
     }
 
     // 添加按钮
@@ -1732,25 +1777,50 @@ void MainWindow::onEditRow()
         }
 
         // 构建更新语句
-        QString sql = QString("UPDATE %1 SET ").arg(currentTable);
-        QStringList setClauses;
-        for (int i = 0; i < columnNames.size(); ++i) {
-            if (i == 0) continue; // 跳过主键列
-            setClauses.append(QString("%1 = '%2'").arg(columnNames[i]).arg(newValues[i]));
+        QStringList updateParts;
+        for (int i = 0; i < newValues.size(); ++i) {
+            // 跳过主键列
+            if (i == primaryKeyIndex) {
+                continue;
+            }
+            
+            QString columnName = schemaResult.rows[i][1]; // columnName
+            QString value = newValues[i];
+            
+            // 根据数据类型决定是否添加引号
+            if (columnFieldTypes[i] == FIELDTYPE_VARCHAR) {
+                // 字符串类型添加引号并处理转义
+                updateParts << QString("%1 = '%2'").arg(columnName).arg(value.replace("'", "''"));
+            } else {
+                // 数值类型不添加引号
+                updateParts << QString("%1 = %2").arg(columnName).arg(value.isEmpty() ? "NULL" : value);
+            }
         }
-        sql += setClauses.join(", ");
-        sql += QString(" WHERE %1 = '%2'").arg(columnNames[0]).arg(rowData[0]);
+
+        // 构建WHERE子句
+        QString whereClause;
+        if (primaryKeyType == FIELDTYPE_VARCHAR) {
+            whereClause = QString("%1 = '%2'").arg(primaryKeyColumn).arg(primaryKeyValue.replace("'", "''"));
+        } else {
+            whereClause = QString("%1 = %2").arg(primaryKeyColumn).arg(primaryKeyValue);
+        }
+
+        QString sql = QString("UPDATE %1 SET %2 WHERE %3")
+                         .arg(currentTable)
+                         .arg(updateParts.join(", "))
+                         .arg(whereClause);
 
         // 执行更新
         char *errmsg = nullptr;
         int rc = GNCDB_exec(db, sql.toUtf8().constData(), nullptr, nullptr, &errmsg);
-
+        qDebug() << "执行更新SQL:" << sql;
+        
         if (rc != 0) {
             QMessageBox::critical(this, "错误", QString("更新失败: %1").arg(Rc2Msg::getErrorMsg(rc, errmsg ? QString(errmsg) : QString())));
             if (errmsg) free(errmsg);
         } else {
             // 更新表格显示
-            for (int i = 0; i < columnNames.size(); ++i) {
+            for (int i = 0; i < newValues.size(); ++i) {
                 QTableWidgetItem *item = dataTable->item(row, i);
                 if (item) {
                     item->setText(newValues[i]);
@@ -2833,85 +2903,85 @@ void MainWindow::onCellEdited(QTableWidgetItem *item)
     qDebug() << "=== 单元格编辑处理完成 ===";
 }
 
-void MainWindow::onEditSQLResult()
-{
-    if (!sqlResultDisplay) {
-        qDebug() << "SQL结果显示表格未初始化";
-        return;
-    }
+// void MainWindow::onEditSQLResult()
+// {
+//     if (!sqlResultDisplay) {
+//         qDebug() << "SQL结果显示表格未初始化";
+//         return;
+//     }
 
-    // 获取当前选中的单元格
-    QList<QTableWidgetItem*> selectedItems = sqlResultDisplay->selectedItems();
-    if (selectedItems.isEmpty()) {
-        QMessageBox::information(this, "提示", "请先选择要编辑的单元格");
-        return;
-    }
+//     // 获取当前选中的单元格
+//     QList<QTableWidgetItem*> selectedItems = sqlResultDisplay->selectedItems();
+//     if (selectedItems.isEmpty()) {
+//         QMessageBox::information(this, "提示", "请先选择要编辑的单元格");
+//         return;
+//     }
 
-    QTableWidgetItem *item = selectedItems.first();
-    int row = item->row();
-    int col = item->column();
+//     QTableWidgetItem *item = selectedItems.first();
+//     int row = item->row();
+//     int col = item->column();
 
-    // 获取列名和主键值
-    QString columnName = sqlResultDisplay->horizontalHeaderItem(col)->text();
-    QString primaryKeyValue = sqlResultDisplay->item(row, 0)->text();
+//     // 获取列名和主键值
+//     QString columnName = sqlResultDisplay->horizontalHeaderItem(col)->text();
+//     QString primaryKeyValue = sqlResultDisplay->item(row, 0)->text();
 
-    // 创建编辑对话框
-    QDialog dialog(this);
-    dialog.setWindowTitle("编辑单元格");
-    QVBoxLayout *layout = new QVBoxLayout(&dialog);
+//     // 创建编辑对话框
+//     QDialog dialog(this);
+//     dialog.setWindowTitle("编辑单元格");
+//     QVBoxLayout *layout = new QVBoxLayout(&dialog);
 
-    // 添加标签显示当前编辑的单元格信息
-    QLabel *infoLabel = new QLabel(QString("正在编辑: %1 (行: %2, 列: %3)")
-                                  .arg(columnName)
-                                  .arg(row + 1)
-                                  .arg(col + 1), &dialog);
-    layout->addWidget(infoLabel);
+//     // 添加标签显示当前编辑的单元格信息
+//     QLabel *infoLabel = new QLabel(QString("正在编辑: %1 (行: %2, 列: %3)")
+//                                   .arg(columnName)
+//                                   .arg(row + 1)
+//                                   .arg(col + 1), &dialog);
+//     layout->addWidget(infoLabel);
 
-    // 添加文本编辑框
-    QLineEdit *edit = new QLineEdit(&dialog);
-    edit->setText(item->text());
-    layout->addWidget(edit);
+//     // 添加文本编辑框
+//     QLineEdit *edit = new QLineEdit(&dialog);
+//     edit->setText(item->text());
+//     layout->addWidget(edit);
 
-    // 添加按钮
-    QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
-    layout->addWidget(buttonBox);
+//     // 添加按钮
+//     QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+//     layout->addWidget(buttonBox);
 
-    // 连接按钮信号
-    connect(buttonBox, &QDialogButtonBox::accepted, [&]() {
-        QString newValue = edit->text();
-        QString oldValue = item->text();
+//     // 连接按钮信号
+//     connect(buttonBox, &QDialogButtonBox::accepted, [&]() {
+//         QString newValue = edit->text();
+//         QString oldValue = item->text();
 
-        if (newValue == oldValue) {
-            dialog.reject();
-            return;
-        }
+//         if (newValue == oldValue) {
+//             dialog.reject();
+//             return;
+//         }
 
-        // 构建更新语句
-        QString sql = QString("UPDATE %1 SET %2 = '%3' WHERE rowid = %4")
-                         .arg(currentTable)
-                         .arg(columnName)
-                         .arg(newValue)
-                         .arg(primaryKeyValue);
+//         // 构建更新语句
+//         QString sql = QString("UPDATE %1 SET %2 = %3 WHERE rowid = %4")
+//                          .arg(currentTable)
+//                          .arg(columnName)
+//                          .arg(newValue)
+//                          .arg(primaryKeyValue);
 
-        // 执行更新
-        char *errmsg = nullptr;
-        int rc = GNCDB_exec(db, sql.toUtf8().constData(), nullptr, nullptr, &errmsg);
+//         // 执行更新
+//         char *errmsg = nullptr;
+//         int rc = GNCDB_exec(db, sql.toUtf8().constData(), nullptr, nullptr, &errmsg);
+//         qDebug() << "执行SQL:" << sql;
+//         if (rc != 0) {
+//             QMessageBox::critical(this, "错误", QString("更新失败: %1").arg(Rc2Msg::getErrorMsg(rc, errmsg ? QString(errmsg) : QString())));
+//             if (errmsg) free(errmsg);
+//         } else {
+//             // 更新表格显示
+//             item->setText(newValue);
+//             dialog.accept();
+//         }
+//     });
 
-        if (rc != 0) {
-            QMessageBox::critical(this, "错误", QString("更新失败: %1").arg(Rc2Msg::getErrorMsg(rc, errmsg ? QString(errmsg) : QString())));
-            if (errmsg) free(errmsg);
-        } else {
-            // 更新表格显示
-            item->setText(newValue);
-            dialog.accept();
-        }
-    });
+//     connect(buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
 
-    connect(buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-
-    // 显示对话框
-    dialog.exec();
-}
+//     // 显示对话框
+//     dialog.exec();
+// }
 
 void MainWindow::onSearchTable()
 {
