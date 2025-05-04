@@ -237,9 +237,11 @@ void MainWindow::initUI()
     openDbAction->setShortcut(QKeySequence("Ctrl+O"));
     QAction *disconnectDbAction = fileMenu->addAction(tr("断开连接"), this, &MainWindow::onDisconnectDB);
     disconnectDbAction->setShortcut(QKeySequence("Ctrl+D"));
+    disconnectDbAction->setIcon(QIcon(":/icons/disconnect.png"));  // 添加断开连接图标
     fileMenu->addSeparator();
     QAction *exitAction = fileMenu->addAction(tr("退出"), this, &MainWindow::onExit);
     exitAction->setShortcut(QKeySequence("Alt+F4"));
+    exitAction->setIcon(QIcon(":/icons/exit.png"));  // 添加退出图标
     
     
     // 数据库菜单
@@ -810,6 +812,21 @@ void MainWindow::initUI()
     // SQL编辑器
     sqlEditor = new QTextEdit();
     sqlEditor->setPlaceholderText(tr("在此输入SQL语句..."));
+    sqlEditor->setStyleSheet(R"(
+        QTextEdit {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 8px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        QTextEdit:focus {
+            border: 1px solid #80bdff;
+            background-color: #ffffff;
+        }
+    )");
     sqlInputLayout->addWidget(sqlEditor);
     
     // SQL执行按钮
@@ -836,6 +853,32 @@ void MainWindow::initUI()
     sqlResultDisplay->setSelectionBehavior(QTableWidget::SelectItems);
     sqlResultDisplay->setSelectionMode(QTableWidget::SingleSelection);
     sqlResultDisplay->setAlternatingRowColors(true);
+    sqlResultDisplay->setStyleSheet(R"(
+        QTableWidget {
+            background-color: #ffffff;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            gridline-color: #dee2e6;
+        }
+        QTableWidget::item {
+            padding: 6px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        QTableWidget::item:selected {
+            background-color: #e9ecef;
+            color: #212529;
+        }
+        QHeaderView::section {
+            background-color: #f8f9fa;
+            padding: 8px;
+            border: none;
+            border-bottom: 2px solid #dee2e6;
+            font-weight: bold;
+        }
+        QTableWidget::item:hover {
+            background-color: #f8f9fa;
+        }
+    )");
     sqlResultLayout->addWidget(sqlResultDisplay);
     
     // 连接表格编辑信号
