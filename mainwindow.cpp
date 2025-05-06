@@ -25,6 +25,11 @@
 #include <QTextStream>
 #include <QTimer>
 #include <QToolButton>
+#include <QCheckBox>
+#include <QSpinBox>
+#include <QCheckBox>
+#include <QTimer>
+#include <QToolButton>
 #include <QRadioButton>
 #include <QButtonGroup>
 #include <QSizePolicy>
@@ -577,13 +582,53 @@ void MainWindow::initUI()
     
     // 创建图标按钮
     QToolButton *firstRecordBtn = new QToolButton(this);
+    firstRecordBtn->setObjectName("firstRecordBtn");
+    qDebug() << "创建第一条记录按钮，对象名称:" << firstRecordBtn->objectName();
+    firstRecordBtn->setIcon(QIcon(":/icons/first.png"));
+    firstRecordBtn->setToolTip(tr("显示第一条记录"));
     QToolButton *prevRecordBtn = new QToolButton(this);
     QToolButton *nextRecordBtn = new QToolButton(this);
     QToolButton *lastRecordBtn = new QToolButton(this);
     QToolButton *newRecordBtn = new QToolButton(this);
     QToolButton *deleteRecordBtn = new QToolButton(this);
-    QToolButton *editRecordBtn = new QToolButton(this);  // 新增编辑按钮
+    QToolButton *editRecordBtn = new QToolButton(this);
     QToolButton *refreshBtn = new QToolButton(this);
+    refreshBtn->setObjectName("refreshBtn");
+    refreshBtn->setIcon(QIcon(":/icons/refresh.png"));
+    refreshBtn->setToolTip(tr("刷新数据"));
+    
+    // 添加自动刷新控制
+    QCheckBox *autoRefreshCheck = new QCheckBox("自动刷新", this);
+    autoRefreshCheck->setToolTip("启用自动刷新数据");
+    QSpinBox *refreshIntervalSpin = new QSpinBox(this);
+    refreshIntervalSpin->setRange(1, 60);
+    refreshIntervalSpin->setValue(5);
+    refreshIntervalSpin->setSuffix(" 秒");
+    refreshIntervalSpin->setToolTip("刷新间隔时间");
+    
+    // 创建定时器
+    QTimer *refreshTimer = new QTimer(this);
+    refreshTimer->setInterval(refreshIntervalSpin->value() * 1000);
+    
+    // 连接自动刷新控制信号
+    connect(autoRefreshCheck, &QCheckBox::toggled, [refreshTimer, refreshIntervalSpin](bool checked) {
+        if (checked) {
+            refreshTimer->start();
+        } else {
+            refreshTimer->stop();
+        }
+    });
+    
+    connect(refreshIntervalSpin, QOverload<int>::of(&QSpinBox::valueChanged), [refreshTimer](int value) {
+        refreshTimer->setInterval(value * 1000);
+    });
+    
+    // 连接定时器超时信号
+    connect(refreshTimer, &QTimer::timeout, [this]() {
+        if (!currentTable.isEmpty()) {
+            onTableSelected(tableTree->currentItem(), 0);
+        }
+    });
     
     // 设置按钮属性
     firstRecordBtn->setText("第一条记录");
@@ -592,17 +637,17 @@ void MainWindow::initUI()
     lastRecordBtn->setText("最后一条记录");
     newRecordBtn->setText("新建记录");
     deleteRecordBtn->setText("删除记录");
-    editRecordBtn->setText("编辑记录");  // 设置编辑按钮文本
-    refreshBtn->setText("刷新"); 
+    editRecordBtn->setText("编辑记录");
+    refreshBtn->setText("刷新");
     
-    // 设置图标（预留路径，后续可以替换为实际图标）
+    // 设置图标
     firstRecordBtn->setIcon(QIcon(":/icons/first_record.png"));
     prevRecordBtn->setIcon(QIcon(":/icons/prev_record.png"));
     nextRecordBtn->setIcon(QIcon(":/icons/next_record.png"));
     lastRecordBtn->setIcon(QIcon(":/icons/last_record.png"));
     newRecordBtn->setIcon(QIcon(":/icons/new_record.png"));
     deleteRecordBtn->setIcon(QIcon(":/icons/delete_record.png"));
-    editRecordBtn->setIcon(QIcon(":/icons/edit.png"));  // 设置编辑按钮图标
+    editRecordBtn->setIcon(QIcon(":/icons/edit.png"));
     refreshBtn->setIcon(QIcon(":/icons/cached.png"));
     
     // 设置按钮样式
@@ -613,7 +658,7 @@ void MainWindow::initUI()
     lastRecordBtn->setStyleSheet(buttonStyle);
     newRecordBtn->setStyleSheet(buttonStyle);
     deleteRecordBtn->setStyleSheet(buttonStyle);
-    editRecordBtn->setStyleSheet(buttonStyle);  // 设置编辑按钮样式
+    editRecordBtn->setStyleSheet(buttonStyle);
     refreshBtn->setStyleSheet(buttonStyle);
     
     // 设置工具提示
@@ -623,8 +668,8 @@ void MainWindow::initUI()
     lastRecordBtn->setToolTip("最后一条记录");
     newRecordBtn->setToolTip("新建记录");
     deleteRecordBtn->setToolTip("删除记录");
-    editRecordBtn->setToolTip("编辑记录");  // 设置编辑按钮提示
-    refreshBtn->setToolTip("刷新");
+    editRecordBtn->setToolTip("编辑记录");
+    refreshBtn->setToolTip("刷新数据");
     
     // 添加按钮到布局
     buttonLayout->addWidget(firstRecordBtn);
@@ -633,9 +678,11 @@ void MainWindow::initUI()
     buttonLayout->addWidget(lastRecordBtn);
     buttonLayout->addWidget(newRecordBtn);
     buttonLayout->addWidget(deleteRecordBtn);
-    buttonLayout->addWidget(editRecordBtn);  // 添加编辑按钮到布局
+    buttonLayout->addWidget(editRecordBtn);
     buttonLayout->addWidget(refreshBtn);
-    buttonLayout->addStretch(); // 添加弹性空间
+    buttonLayout->addStretch();
+    buttonLayout->addWidget(autoRefreshCheck);
+    buttonLayout->addWidget(refreshIntervalSpin);
     
     // 添加按钮布局到数据标签页
     dataLayout->addLayout(buttonLayout);
@@ -674,10 +721,15 @@ void MainWindow::initUI()
     
     connect(newRecordBtn, &QToolButton::clicked, this, &MainWindow::onAddRow);
     connect(deleteRecordBtn, &QToolButton::clicked, this, &MainWindow::onDeleteRow);
-    connect(editRecordBtn, &QToolButton::clicked, this, &MainWindow::onEditRow);  // 连接编辑按钮信号
+    connect(editRecordBtn, &QToolButton::clicked, this, &MainWindow::onEditRow);
     connect(refreshBtn, &QToolButton::clicked, this, [this]() {
+        qDebug() << "刷新按钮被点击";
         if (!currentTable.isEmpty()) {
-            onTableSelected(tableTree->currentItem(), 0);
+            // 直接调用onTableSelected来刷新数据
+            QTreeWidgetItem* currentItem = tableTree->currentItem();
+            if (currentItem) {
+                onTableSelected(currentItem, 0);
+            }
         }
     });
     
@@ -708,8 +760,50 @@ void MainWindow::initUI()
     designTable->setSelectionBehavior(QTableWidget::SelectRows);
     designTable->setAlternatingRowColors(true);
     
+    // 设置表格样式
+    designTable->setStyleSheet(R"(
+        QTableWidget {
+            background-color: #ffffff;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            gridline-color: #e9ecef;
+        }
+        QTableWidget::item {
+            padding: 8px;
+            border-bottom: 1px solid #e9ecef;
+            color: #495057;
+        }
+        QTableWidget::item:selected {
+            background-color: #e9ecef;
+            color: #212529;
+        }
+        QHeaderView::section {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border: none;
+            border-bottom: 2px solid #dee2e6;
+            font-weight: bold;
+            color: #495057;
+        }
+        QTableWidget::item:hover {
+            background-color: #f8f9fa;
+        }
+    )");
+    
     // 设置列宽
-    designTable->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    designTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
+    designTable->horizontalHeader()->setMinimumSectionSize(80);
+    designTable->horizontalHeader()->setDefaultSectionSize(100);
+    
+    // 设置行高
+    designTable->verticalHeader()->setDefaultSectionSize(32);
+    designTable->verticalHeader()->setVisible(false);
+    
+    // 设置表格属性
+    designTable->setShowGrid(true);
+    designTable->setGridStyle(Qt::SolidLine);
+    designTable->setFrameShape(QFrame::StyledPanel);
+    designTable->setFrameShadow(QFrame::Sunken);
     
     designLayout->addWidget(designTable);
     rightTabWidget->addTab(designTab, "设计");
@@ -734,12 +828,16 @@ void MainWindow::initUI()
         }
         
         // 设置行数
-        designTable->setRowCount(result.rows.size());
+        designTable->setRowCount(result.rows.size()-3);
         
         // 填充数据
         for (int i = 0; i < result.rows.size(); ++i) {
-            const QStringList &row = result.rows[i];
             
+            const QStringList &row = result.rows[i];
+            if(row[1] == "createTime"||row[1] == "updateTime"||row[1] == "deleteTime")
+            {
+                continue;
+            }
             // 序号
             QTableWidgetItem *idItem = new QTableWidgetItem(row[0]);
             designTable->setItem(i, 0, idItem);
@@ -1465,13 +1563,42 @@ void MainWindow::loadTableColumns(QTreeWidgetItem *tableItem)
     }
 }
 
-void MainWindow::showTableData(const QString &/*tableName*/)
-{
-    if (!db) return;
-
-    dataTable->clear();
-    // TODO: 使用gncdblib的API获取表数据
-    // 这里需要根据gncdblib的API来实现
+void MainWindow::showTableData(const QString &tableName) {
+    if (!dataTable) return;
+    
+    qDebug() << "开始显示表格数据:" << tableName;
+    
+    // 清空表格
+    dataTable->clearContents();
+    dataTable->setRowCount(0);
+    
+    // 设置当前表名
+    dataTable->setProperty("currentTable", tableName);
+    
+    // 执行查询
+    QString sql = QString("SELECT * FROM %1").arg(tableName);
+    executeSQLStatement(sql);
+    
+    qDebug() << "数据加载完成，行数:" << dataTable->rowCount();
+    
+    // 在数据加载完成后，找到并触发"显示第一条记录"按钮的点击事件
+    if (dataTable->rowCount() > 0) {
+        qDebug() << "准备触发第一条记录按钮点击";
+        // 使用QTimer::singleShot确保在数据加载完成后触发
+        QTimer::singleShot(100, [this]() {
+            qDebug() << "开始查找第一条记录按钮";
+            QToolButton *firstRecordBtn = findChild<QToolButton*>("firstRecordBtn");
+            if (firstRecordBtn) {
+                qDebug() << "找到第一条记录按钮，准备触发点击";
+                firstRecordBtn->click();
+                qDebug() << "已触发第一条记录按钮点击";
+            } else {
+                qDebug() << "未找到第一条记录按钮！";
+            }
+        });
+    } else {
+        qDebug() << "表格中没有数据，不触发按钮点击";
+    }
 }
 
 void MainWindow::showError(const QString &message)
@@ -3454,5 +3581,20 @@ void MainWindow::onVacuumDatabase()
         QString errorMsg = QString("数据库压缩失败，错误代码: %1").arg(result);
         showError(errorMsg);
         statusBar->showMessage(errorMsg, 5000);
+    }
+}
+
+void MainWindow::refreshTable() {
+    if (!dataTable) return;
+    
+    // 执行刷新逻辑
+    QString tableName = dataTable->property("currentTable").toString();
+    if (!tableName.isEmpty()) {
+        showTableData(tableName);
+        
+        // 如果有数据，选中第一行
+        if (dataTable->rowCount() > 0) {
+            dataTable->selectRow(0);
+        }
     }
 }

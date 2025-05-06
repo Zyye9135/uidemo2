@@ -1,4 +1,3 @@
-
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
@@ -130,6 +129,7 @@ private slots:
     void onSearchValue();    // 数值查找
     void updateDatabaseInfo(); // 更新数据库信息
     void onVacuumDatabase(); // 压缩数据库
+    void refreshTable();  // 添加刷新方法声明
 
 private:
     Ui::MainWindow *ui;
