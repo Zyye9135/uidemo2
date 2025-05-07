@@ -253,6 +253,8 @@ void MainWindow::initUI()
     databaseMenu = menuBar->addMenu(tr("数据库(&D)"));
     QAction *refreshAction = databaseMenu->addAction(tr("刷新"), this, &MainWindow::onRefreshTables);
     QAction *vacuumAction = databaseMenu->addAction(tr("压缩数据库"), this, &MainWindow::onVacuumDatabase);
+    vacuumAction->setIcon(QIcon(":/icons/database_vacuum.png"));
+    vacuumAction->setShortcut(QKeySequence("Ctrl+Shift+V"));
     
     // 菜单分隔符
     databaseMenu->addSeparator();
@@ -280,30 +282,32 @@ void MainWindow::initUI()
     executeLineAction->setShortcut(QKeySequence("Ctrl+L"));
     sqlMenu->addSeparator();
     QAction *formatAction = sqlMenu->addAction(tr("格式化SQL"), this, &MainWindow::onFormatSQL);
-    formatAction->setShortcut(QKeySequence("Ctrl+F"));
+    formatAction->setShortcut(QKeySequence("Ctrl+Alt+F"));
     sqlMenu->addSeparator();
     QAction *openScriptAction = sqlMenu->addAction(tr("打开SQL脚本"), this, &MainWindow::onOpenSQLScript);
-    openScriptAction->setShortcut(QKeySequence("Ctrl+O"));
+    openScriptAction->setShortcut(QKeySequence("Ctrl+Shift+O"));
     QAction *saveScriptAction = sqlMenu->addAction(tr("保存SQL脚本"), this, &MainWindow::onSaveSQLScript);
     saveScriptAction->setShortcut(QKeySequence("Ctrl+S"));
     QAction *saveAsScriptAction = sqlMenu->addAction(tr("SQL脚本另存为"), this, &MainWindow::onSaveAsSQLScript);
     saveAsScriptAction->setShortcut(QKeySequence("Ctrl+Shift+S"));
     
     // 搜索菜单
-    searchMenu = menuBar->addMenu(tr("搜索(&S)"));
+    searchMenu = menuBar->addMenu(tr("搜索(&R)"));
     QAction *searchTableAction = searchMenu->addAction(tr("表查找"), this, &MainWindow::onSearchTable);
     searchTableAction->setShortcut(QKeySequence("Ctrl+F"));
     QAction *searchColumnAction = searchMenu->addAction(tr("段查找"), this, &MainWindow::onSearchColumn);
-    searchColumnAction->setShortcut(QKeySequence("Ctrl+Shift+F"));
+    searchColumnAction->setShortcut(QKeySequence("Ctrl+Shift+C"));
     QAction *searchValueAction = searchMenu->addAction(tr("数值查找"), this, &MainWindow::onSearchValue);
-    searchValueAction->setShortcut(QKeySequence("Ctrl+Alt+F"));
+    searchValueAction->setShortcut(QKeySequence("Ctrl+Alt+N"));
     
     // 工具菜单
-    toolsMenu = menuBar->addMenu(tr("工具(&O)"));
+    toolsMenu = menuBar->addMenu(tr("工具(&T)"));
     QAction *zoomInAction = toolsMenu->addAction(tr("放大字体"), this, &MainWindow::onZoomIn);
     zoomInAction->setShortcut(QKeySequence("Ctrl++"));
     QAction *zoomOutAction = toolsMenu->addAction(tr("缩小字体"), this, &MainWindow::onZoomOut);
     zoomOutAction->setShortcut(QKeySequence("Ctrl+-"));
+    
+    toolsMenu->addSeparator();
     
     // 帮助菜单
     helpMenu = menuBar->addMenu(tr("帮助(&H)"));
@@ -318,7 +322,7 @@ void MainWindow::initUI()
     //qDebug() << "Icon paths:" << QDir(":/icons").entryList();
     
     // 设置工具栏按钮大小
-    mainToolBar->setIconSize(QSize(32, 32));  // 统一图标大小为16x16像素
+    mainToolBar->setIconSize(QSize(20, 20));  
     mainToolBar->setToolButtonStyle(Qt::ToolButtonIconOnly);  // 只显示图标
     
     // 为已存在的动作添加图标
@@ -348,6 +352,13 @@ void MainWindow::initUI()
     refreshAction->setStatusTip(tr("刷新表列表"));
     mainToolBar->addAction(refreshAction);
     
+    // 为压缩数据库动作添加图标
+    vacuumAction->setStatusTip(tr("压缩数据库以回收空间"));
+    mainToolBar->addAction(vacuumAction);
+    
+    // 添加分隔符
+    mainToolBar->addSeparator();
+    
     // 为字体缩放动作添加图标
     QIcon zoomInIcon(":/icons/zoom_in.png");
     zoomInAction->setIcon(zoomInIcon);
@@ -359,6 +370,7 @@ void MainWindow::initUI()
     zoomOutAction->setStatusTip(tr("减小字体大小"));
     mainToolBar->addAction(zoomOutAction);
     
+    // 添加主题切换按钮
     // 添加退出按钮
     QIcon exitIcon(":/icons/exit.png");
     QAction *toolbarExitAction = new QAction(exitIcon, tr("退出"), this);
@@ -3160,32 +3172,103 @@ void MainWindow::onSearchTable()
         return;
     }
 
-    // 创建查找对话框
     QDialog dialog(this);
     dialog.setWindowTitle("表查找");
+    dialog.setMinimumWidth(400);
+    dialog.setMinimumHeight(300);
     QVBoxLayout *layout = new QVBoxLayout(&dialog);
-
-    // 添加查找输入框
+    
+    // 创建搜索框
     QLineEdit *searchEdit = new QLineEdit(&dialog);
-    searchEdit->setPlaceholderText("输入要查找的表名");
+    searchEdit->setPlaceholderText(tr("输入表名进行搜索..."));
+    searchEdit->setStyleSheet(
+        "QLineEdit {"
+        "    padding: 5px;"
+        "    border: 1px solid #ccc;"
+        "    border-radius: 3px;"
+        "    background: white;"
+        "}"
+        "QLineEdit:focus {"
+        "    border: 1px solid #0078d7;"
+        "}"
+    );
     layout->addWidget(searchEdit);
-
-    // 添加搜索结果列表
-    QTableWidget *resultList = new QTableWidget(&dialog);
-    resultList->setColumnCount(1);
-    resultList->setHorizontalHeaderLabels({"表名"});
-    resultList->setSelectionBehavior(QTableWidget::SelectRows);
-    resultList->setSelectionMode(QTableWidget::SingleSelection);
-    resultList->setEditTriggers(QTableWidget::NoEditTriggers);
-    resultList->horizontalHeader()->setStretchLastSection(true);
-    layout->addWidget(resultList);
-
-    // 添加查找按钮
-    QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
-    layout->addWidget(buttonBox);
-
-    // 连接确定按钮
-    connect(buttonBox, &QDialogButtonBox::accepted, [&]() {
+    
+    // 创建表格
+    QTableWidget *table = new QTableWidget(&dialog);
+    table->setColumnCount(1);
+    table->setHorizontalHeaderLabels(QStringList() << tr("表名"));
+    table->setSelectionBehavior(QTableWidget::SelectRows);
+    table->setSelectionMode(QTableWidget::SingleSelection);
+    table->setEditTriggers(QTableWidget::NoEditTriggers);
+    table->setAlternatingRowColors(true);
+    table->horizontalHeader()->setStretchLastSection(true);
+    table->verticalHeader()->setVisible(false);
+    table->setStyleSheet(
+        "QTableWidget {"
+        "    border: 1px solid #ccc;"
+        "    border-radius: 3px;"
+        "    background: white;"
+        "    gridline-color: #f0f0f0;"
+        "}"
+        "QTableWidget::item {"
+        "    padding: 5px;"
+        "}"
+        "QTableWidget::item:selected {"
+        "    background-color: #0078d7;"
+        "    color: white;"
+        "}"
+        "QHeaderView::section {"
+        "    background-color: #f5f5f5;"
+        "    padding: 5px;"
+        "    border: none;"
+        "    border-bottom: 1px solid #ccc;"
+        "    font-weight: bold;"
+        "}"
+    );
+    layout->addWidget(table);
+    
+    // 添加按钮
+    QHBoxLayout *buttonLayout = new QHBoxLayout();
+    QPushButton *searchButton = new QPushButton(tr("搜索"), &dialog);
+    QPushButton *closeButton = new QPushButton(tr("关闭"), &dialog);
+    searchButton->setStyleSheet(
+        "QPushButton {"
+        "    padding: 5px 15px;"
+        "    background-color: #0078d7;"
+        "    color: white;"
+        "    border: none;"
+        "    border-radius: 3px;"
+        "}"
+        "QPushButton:hover {"
+        "    background-color: #106ebe;"
+        "}"
+        "QPushButton:pressed {"
+        "    background-color: #005a9e;"
+        "}"
+    );
+    closeButton->setStyleSheet(
+        "QPushButton {"
+        "    padding: 5px 15px;"
+        "    background-color: #f0f0f0;"
+        "    color: #333;"
+        "    border: 1px solid #ccc;"
+        "    border-radius: 3px;"
+        "}"
+        "QPushButton:hover {"
+        "    background-color: #e0e0e0;"
+        "}"
+        "QPushButton:pressed {"
+        "    background-color: #d0d0d0;"
+        "}"
+    );
+    buttonLayout->addStretch();
+    buttonLayout->addWidget(searchButton);
+    buttonLayout->addWidget(closeButton);
+    layout->addLayout(buttonLayout);
+    
+    // 连接信号
+    connect(searchButton, &QPushButton::clicked, [&]() {
         QString searchText = searchEdit->text().trimmed();
         if (searchText.isEmpty()) {
             showError("请输入要查找的表名");
@@ -3193,7 +3276,7 @@ void MainWindow::onSearchTable()
         }
 
         // 清空结果列表
-        resultList->setRowCount(0);
+        table->setRowCount(0);
 
         // 在表树中查找
         QList<QTreeWidgetItem*> items = tableTree->findItems(searchText, Qt::MatchContains | Qt::MatchRecursive);
@@ -3204,17 +3287,17 @@ void MainWindow::onSearchTable()
 
         // 添加结果到列表
         for (QTreeWidgetItem *item : items) {
-            int newRow = resultList->rowCount();
-            resultList->insertRow(newRow);
+            int newRow = table->rowCount();
+            table->insertRow(newRow);
             QTableWidgetItem *tableItem = new QTableWidgetItem(item->text(0));
-            resultList->setItem(newRow, 0, tableItem);
+            table->setItem(newRow, 0, tableItem);
         }
 
         // 调整列宽
-        resultList->resizeColumnsToContents();
+        table->resizeColumnsToContents();
         
         // 连接结果列表的点击事件
-        connect(resultList, &QTableWidget::itemClicked, [&](QTableWidgetItem *item) {
+        connect(table, &QTableWidget::itemClicked, [&](QTableWidgetItem *item) {
             QString tableName = item->text();
             QList<QTreeWidgetItem*> foundItems = tableTree->findItems(tableName, Qt::MatchExactly);
             if (!foundItems.isEmpty()) {
@@ -3222,12 +3305,10 @@ void MainWindow::onSearchTable()
                 tableTree->scrollToItem(foundItems.first());
             }
         });
-
-        dialog.exec();
     });
-
-    connect(buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-
+    
+    connect(closeButton, &QPushButton::clicked, &dialog, &QDialog::accept);
+    
     dialog.exec();
 }
 
@@ -3238,32 +3319,103 @@ void MainWindow::onSearchColumn()
         return;
     }
 
-    // 创建查找对话框
     QDialog dialog(this);
     dialog.setWindowTitle("段查找");
+    dialog.setMinimumWidth(400);
+    dialog.setMinimumHeight(300);
     QVBoxLayout *layout = new QVBoxLayout(&dialog);
-
-    // 添加查找输入框
+    
+    // 创建搜索框
     QLineEdit *searchEdit = new QLineEdit(&dialog);
-    searchEdit->setPlaceholderText("输入要查找的段名");
+    searchEdit->setPlaceholderText(tr("输入字段名进行搜索..."));
+    searchEdit->setStyleSheet(
+        "QLineEdit {"
+        "    padding: 5px;"
+        "    border: 1px solid #ccc;"
+        "    border-radius: 3px;"
+        "    background: white;"
+        "}"
+        "QLineEdit:focus {"
+        "    border: 1px solid #0078d7;"
+        "}"
+    );
     layout->addWidget(searchEdit);
-
-    // 添加搜索结果列表
-    QTableWidget *resultList = new QTableWidget(&dialog);
-    resultList->setColumnCount(2);
-    resultList->setHorizontalHeaderLabels({"列号", "列名"});
-    resultList->setSelectionBehavior(QTableWidget::SelectRows);
-    resultList->setSelectionMode(QTableWidget::SingleSelection);
-    resultList->setEditTriggers(QTableWidget::NoEditTriggers);
-    resultList->horizontalHeader()->setStretchLastSection(true);
-    layout->addWidget(resultList);
-
-    // 添加查找按钮
-    QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
-    layout->addWidget(buttonBox);
-
-    // 连接确定按钮
-    connect(buttonBox, &QDialogButtonBox::accepted, [&]() {
+    
+    // 创建表格
+    QTableWidget *table = new QTableWidget(&dialog);
+    table->setColumnCount(2);
+    table->setHorizontalHeaderLabels(QStringList() << tr("列号") << tr("列名"));
+    table->setSelectionBehavior(QTableWidget::SelectRows);
+    table->setSelectionMode(QTableWidget::SingleSelection);
+    table->setEditTriggers(QTableWidget::NoEditTriggers);
+    table->setAlternatingRowColors(true);
+    table->horizontalHeader()->setStretchLastSection(true);
+    table->verticalHeader()->setVisible(false);
+    table->setStyleSheet(
+        "QTableWidget {"
+        "    border: 1px solid #ccc;"
+        "    border-radius: 3px;"
+        "    background: white;"
+        "    gridline-color: #f0f0f0;"
+        "}"
+        "QTableWidget::item {"
+        "    padding: 5px;"
+        "}"
+        "QTableWidget::item:selected {"
+        "    background-color: #0078d7;"
+        "    color: white;"
+        "}"
+        "QHeaderView::section {"
+        "    background-color: #f5f5f5;"
+        "    padding: 5px;"
+        "    border: none;"
+        "    border-bottom: 1px solid #ccc;"
+        "    font-weight: bold;"
+        "}"
+    );
+    layout->addWidget(table);
+    
+    // 添加按钮
+    QHBoxLayout *buttonLayout = new QHBoxLayout();
+    QPushButton *searchButton = new QPushButton(tr("搜索"), &dialog);
+    QPushButton *closeButton = new QPushButton(tr("关闭"), &dialog);
+    searchButton->setStyleSheet(
+        "QPushButton {"
+        "    padding: 5px 15px;"
+        "    background-color: #0078d7;"
+        "    color: white;"
+        "    border: none;"
+        "    border-radius: 3px;"
+        "}"
+        "QPushButton:hover {"
+        "    background-color: #106ebe;"
+        "}"
+        "QPushButton:pressed {"
+        "    background-color: #005a9e;"
+        "}"
+    );
+    closeButton->setStyleSheet(
+        "QPushButton {"
+        "    padding: 5px 15px;"
+        "    background-color: #f0f0f0;"
+        "    color: #333;"
+        "    border: 1px solid #ccc;"
+        "    border-radius: 3px;"
+        "}"
+        "QPushButton:hover {"
+        "    background-color: #e0e0e0;"
+        "}"
+        "QPushButton:pressed {"
+        "    background-color: #d0d0d0;"
+        "}"
+    );
+    buttonLayout->addStretch();
+    buttonLayout->addWidget(searchButton);
+    buttonLayout->addWidget(closeButton);
+    layout->addLayout(buttonLayout);
+    
+    // 连接信号
+    connect(searchButton, &QPushButton::clicked, [&]() {
         QString searchText = searchEdit->text().trimmed();
         if (searchText.isEmpty()) {
             showError("请输入要查找的段名");
@@ -3271,45 +3423,43 @@ void MainWindow::onSearchColumn()
         }
 
         // 清空结果列表
-        resultList->setRowCount(0);
+        table->setRowCount(0);
 
         // 在表头中查找
         for (int i = 0; i < dataTable->columnCount(); ++i) {
             QString headerText = dataTable->horizontalHeaderItem(i)->text();
             if (headerText.contains(searchText, Qt::CaseInsensitive)) {
-                int newRow = resultList->rowCount();
-                resultList->insertRow(newRow);
+                int newRow = table->rowCount();
+                table->insertRow(newRow);
                 
                 // 添加列号
                 QTableWidgetItem *colItem = new QTableWidgetItem(QString::number(i + 1));
-                resultList->setItem(newRow, 0, colItem);
+                table->setItem(newRow, 0, colItem);
                 
                 // 添加列名
                 QTableWidgetItem *nameItem = new QTableWidgetItem(headerText);
-                resultList->setItem(newRow, 1, nameItem);
+                table->setItem(newRow, 1, nameItem);
             }
         }
 
-        if (resultList->rowCount() == 0) {
+        if (table->rowCount() == 0) {
             showError(QString("未找到包含 '%1' 的段").arg(searchText));
             return;
         }
 
         // 调整列宽
-        resultList->resizeColumnsToContents();
+        table->resizeColumnsToContents();
         
         // 连接结果列表的点击事件
-        connect(resultList, &QTableWidget::itemClicked, [&](QTableWidgetItem *item) {
-            int col = resultList->item(item->row(), 0)->text().toInt() - 1;
+        connect(table, &QTableWidget::itemClicked, [&](QTableWidgetItem *item) {
+            int col = table->item(item->row(), 0)->text().toInt() - 1;
             dataTable->selectColumn(col);
             dataTable->scrollToItem(dataTable->item(0, col));
         });
-
-        dialog.exec();
     });
-
-    connect(buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-
+    
+    connect(closeButton, &QPushButton::clicked, &dialog, &QDialog::accept);
+    
     dialog.exec();
 }
 
@@ -3320,32 +3470,103 @@ void MainWindow::onSearchValue()
         return;
     }
 
-    // 创建查找对话框
     QDialog dialog(this);
     dialog.setWindowTitle("数值查找");
+    dialog.setMinimumWidth(400);
+    dialog.setMinimumHeight(300);
     QVBoxLayout *layout = new QVBoxLayout(&dialog);
-
-    // 添加查找输入框
+    
+    // 创建搜索框
     QLineEdit *searchEdit = new QLineEdit(&dialog);
-    searchEdit->setPlaceholderText("输入要查找的数值");
+    searchEdit->setPlaceholderText(tr("输入要查找的值..."));
+    searchEdit->setStyleSheet(
+        "QLineEdit {"
+        "    padding: 5px;"
+        "    border: 1px solid #ccc;"
+        "    border-radius: 3px;"
+        "    background: white;"
+        "}"
+        "QLineEdit:focus {"
+        "    border: 1px solid #0078d7;"
+        "}"
+    );
     layout->addWidget(searchEdit);
-
-    // 添加搜索结果列表
-    QTableWidget *resultList = new QTableWidget(&dialog);
-    resultList->setColumnCount(3);
-    resultList->setHorizontalHeaderLabels({"行号", "列名", "值"});
-    resultList->setSelectionBehavior(QTableWidget::SelectRows);
-    resultList->setSelectionMode(QTableWidget::SingleSelection);
-    resultList->setEditTriggers(QTableWidget::NoEditTriggers);
-    resultList->horizontalHeader()->setStretchLastSection(true);
-    layout->addWidget(resultList);
-
-    // 添加查找按钮
-    QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
-    layout->addWidget(buttonBox);
-
-    // 连接确定按钮
-    connect(buttonBox, &QDialogButtonBox::accepted, [&]() {
+    
+    // 创建表格
+    QTableWidget *table = new QTableWidget(&dialog);
+    table->setColumnCount(3);
+    table->setHorizontalHeaderLabels(QStringList() << tr("行号") << tr("列名") << tr("值"));
+    table->setSelectionBehavior(QTableWidget::SelectRows);
+    table->setSelectionMode(QTableWidget::SingleSelection);
+    table->setEditTriggers(QTableWidget::NoEditTriggers);
+    table->setAlternatingRowColors(true);
+    table->horizontalHeader()->setStretchLastSection(true);
+    table->verticalHeader()->setVisible(false);
+    table->setStyleSheet(
+        "QTableWidget {"
+        "    border: 1px solid #ccc;"
+        "    border-radius: 3px;"
+        "    background: white;"
+        "    gridline-color: #f0f0f0;"
+        "}"
+        "QTableWidget::item {"
+        "    padding: 5px;"
+        "}"
+        "QTableWidget::item:selected {"
+        "    background-color: #0078d7;"
+        "    color: white;"
+        "}"
+        "QHeaderView::section {"
+        "    background-color: #f5f5f5;"
+        "    padding: 5px;"
+        "    border: none;"
+        "    border-bottom: 1px solid #ccc;"
+        "    font-weight: bold;"
+        "}"
+    );
+    layout->addWidget(table);
+    
+    // 添加按钮
+    QHBoxLayout *buttonLayout = new QHBoxLayout();
+    QPushButton *searchButton = new QPushButton(tr("搜索"), &dialog);
+    QPushButton *closeButton = new QPushButton(tr("关闭"), &dialog);
+    searchButton->setStyleSheet(
+        "QPushButton {"
+        "    padding: 5px 15px;"
+        "    background-color: #0078d7;"
+        "    color: white;"
+        "    border: none;"
+        "    border-radius: 3px;"
+        "}"
+        "QPushButton:hover {"
+        "    background-color: #106ebe;"
+        "}"
+        "QPushButton:pressed {"
+        "    background-color: #005a9e;"
+        "}"
+    );
+    closeButton->setStyleSheet(
+        "QPushButton {"
+        "    padding: 5px 15px;"
+        "    background-color: #f0f0f0;"
+        "    color: #333;"
+        "    border: 1px solid #ccc;"
+        "    border-radius: 3px;"
+        "}"
+        "QPushButton:hover {"
+        "    background-color: #e0e0e0;"
+        "}"
+        "QPushButton:pressed {"
+        "    background-color: #d0d0d0;"
+        "}"
+    );
+    buttonLayout->addStretch();
+    buttonLayout->addWidget(searchButton);
+    buttonLayout->addWidget(closeButton);
+    layout->addLayout(buttonLayout);
+    
+    // 连接信号
+    connect(searchButton, &QPushButton::clicked, [&]() {
         QString searchText = searchEdit->text().trimmed();
         if (searchText.isEmpty()) {
             showError("请输入要查找的数值");
@@ -3353,51 +3574,49 @@ void MainWindow::onSearchValue()
         }
 
         // 清空结果列表
-        resultList->setRowCount(0);
+        table->setRowCount(0);
 
         // 在表格中查找
         for (int row = 0; row < dataTable->rowCount(); ++row) {
             for (int col = 0; col < dataTable->columnCount(); ++col) {
                 QTableWidgetItem *item = dataTable->item(row, col);
                 if (item && item->text().contains(searchText, Qt::CaseInsensitive)) {
-                    int newRow = resultList->rowCount();
-                    resultList->insertRow(newRow);
+                    int newRow = table->rowCount();
+                    table->insertRow(newRow);
                     
                     // 添加行号
                     QTableWidgetItem *rowItem = new QTableWidgetItem(QString::number(row + 1));
-                    resultList->setItem(newRow, 0, rowItem);
+                    table->setItem(newRow, 0, rowItem);
                     
                     // 添加列名
                     QTableWidgetItem *colItem = new QTableWidgetItem(dataTable->horizontalHeaderItem(col)->text());
-                    resultList->setItem(newRow, 1, colItem);
+                    table->setItem(newRow, 1, colItem);
                     
                     // 添加值
                     QTableWidgetItem *valueItem = new QTableWidgetItem(item->text());
-                    resultList->setItem(newRow, 2, valueItem);
+                    table->setItem(newRow, 2, valueItem);
                 }
             }
         }
 
-        if (resultList->rowCount() == 0) {
+        if (table->rowCount() == 0) {
             showError(QString("未找到包含 '%1' 的数值").arg(searchText));
             return;
         }
 
         // 调整列宽
-        resultList->resizeColumnsToContents();
+        table->resizeColumnsToContents();
         
         // 连接结果列表的点击事件
-        connect(resultList, &QTableWidget::itemClicked, [&](QTableWidgetItem *item) {
-            int row = resultList->item(item->row(), 0)->text().toInt() - 1;
+        connect(table, &QTableWidget::itemClicked, [&](QTableWidgetItem *item) {
+            int row = table->item(item->row(), 0)->text().toInt() - 1;
             dataTable->selectRow(row);
             dataTable->scrollToItem(dataTable->item(row, 0));
         });
-
-        dialog.exec();
     });
-
-    connect(buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-
+    
+    connect(closeButton, &QPushButton::clicked, &dialog, &QDialog::accept);
+    
     dialog.exec();
 }
 

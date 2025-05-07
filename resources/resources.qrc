@@ -23,5 +23,6 @@
         <file>icons/table_logo.png</file>
         <file>icons/column_logo.png</file>
         <file>icons/edit.png</file>
+        <file>icons/database_vacuum.png</file>
     </qresource>
 </RCC>
