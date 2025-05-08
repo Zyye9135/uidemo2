@@ -1,0 +1,62 @@
+Date : 2025-05-07 16:34:42
+Directory : /home/zyy/gncdb_ui2
+Total : 26 files,  3911 codes, 597 comments, 814 blanks, all 5322 lines
+
+Languages
++----------+------------+------------+------------+------------+------------+
+| language | files      | code       | comment    | blank      | total      |
++----------+------------+------------+------------+------------+------------+
+| C++      |         18 |      3,437 |        597 |        732 |      4,766 |
+| CMake    |          5 |        177 |          0 |         41 |        218 |
+| ui       |          1 |        137 |          0 |          1 |        138 |
+| Markdown |          1 |        132 |          0 |         40 |        172 |
+| Qrc      |          1 |         28 |          0 |          0 |         28 |
++----------+------------+------------+------------+------------+------------+
+
+Directories
++-------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                  | files      | code       | comment    | blank      | total      |
++-------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                     |         26 |      3,911 |        597 |        814 |      5,322 |
+| . (Files)                                             |          8 |      3,436 |        566 |        716 |      4,718 |
+| database                                              |          4 |         82 |          0 |         23 |        105 |
+| rc2msg                                                |          3 |        158 |          0 |         13 |        171 |
+| resources                                             |          1 |         28 |          0 |          0 |         28 |
+| ui                                                    |          5 |        136 |          6 |         33 |        175 |
+| vacuum                                                |          5 |         71 |         25 |         29 |        125 |
+| vacuum (Files)                                        |          1 |         23 |          0 |          7 |         30 |
+| vacuum/include                                        |          4 |         48 |         25 |         22 |         95 |
++-------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++-------------------------------------------------------+----------+------------+------------+------------+------------+
+| filename                                              | language | code       | comment    | blank      | total      |
++-------------------------------------------------------+----------+------------+------------+------------+------------+
+| /home/zyy/gncdb_ui2/CMakeLists.txt                    | CMake    |        107 |          0 |         19 |        126 |
+| /home/zyy/gncdb_ui2/PROJECT.md                        | Markdown |        132 |          0 |         40 |        172 |
+| /home/zyy/gncdb_ui2/SqlHighlighter.cpp                | C++      |        140 |         17 |         26 |        183 |
+| /home/zyy/gncdb_ui2/SqlHighlighter.h                  | C++      |         30 |         10 |         15 |         55 |
+| /home/zyy/gncdb_ui2/database/CMakeLists.txt           | CMake    |         12 |          0 |          4 |         16 |
+| /home/zyy/gncdb_ui2/database/dbmanager.cpp            | C++      |         40 |          0 |         10 |         50 |
+| /home/zyy/gncdb_ui2/database/dbmanager.h              | C++      |         20 |          0 |          6 |         26 |
+| /home/zyy/gncdb_ui2/database/sqlresult.h              | C++      |         10 |          0 |          3 |         13 |
+| /home/zyy/gncdb_ui2/main.cpp                          | C++      |          9 |          0 |          3 |         12 |
+| /home/zyy/gncdb_ui2/mainwindow.cpp                    | C++      |      2,701 |        531 |        588 |      3,820 |
+| /home/zyy/gncdb_ui2/mainwindow.h                      | C++      |        180 |          8 |         24 |        212 |
+| /home/zyy/gncdb_ui2/mainwindow.ui                     | ui       |        137 |          0 |          1 |        138 |
+| /home/zyy/gncdb_ui2/rc2msg/CMakeLists.txt             | CMake    |         22 |          0 |          7 |         29 |
+| /home/zyy/gncdb_ui2/rc2msg/rc2msg.cpp                 | C++      |        126 |          0 |          3 |        129 |
+| /home/zyy/gncdb_ui2/rc2msg/rc2msg.h                   | C++      |         10 |          0 |          3 |         13 |
+| /home/zyy/gncdb_ui2/resources/resources.qrc           | Qrc      |         28 |          0 |          0 |         28 |
+| /home/zyy/gncdb_ui2/ui/CMakeLists.txt                 | CMake    |         13 |          0 |          4 |         17 |
+| /home/zyy/gncdb_ui2/ui/dataeditdialog.cpp             | C++      |          0 |          0 |          1 |          1 |
+| /home/zyy/gncdb_ui2/ui/dataeditdialog.h               | C++      |          0 |          0 |          1 |          1 |
+| /home/zyy/gncdb_ui2/ui/tabledialog.cpp                | C++      |         89 |          6 |         19 |        114 |
+| /home/zyy/gncdb_ui2/ui/tabledialog.h                  | C++      |         34 |          0 |          8 |         42 |
+| /home/zyy/gncdb_ui2/vacuum/CMakeLists.txt             | CMake    |         23 |          0 |          7 |         30 |
+| /home/zyy/gncdb_ui2/vacuum/include/adaptiveSort.h     | C++      |          3 |          0 |          2 |          5 |
+| /home/zyy/gncdb_ui2/vacuum/include/dbInfo.h           | C++      |         19 |          9 |          8 |         36 |
+| /home/zyy/gncdb_ui2/vacuum/include/fileModification.h | C++      |         10 |          8 |          6 |         24 |
+| /home/zyy/gncdb_ui2/vacuum/include/vacuum.h           | C++      |         16 |          8 |          6 |         30 |
+| Total                                                 |          |      3,911 |        597 |        814 |      5,322 |
++-------------------------------------------------------+----------+------------+------------+------------+------------+
