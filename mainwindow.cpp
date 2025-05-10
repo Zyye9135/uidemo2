@@ -462,9 +462,6 @@ void MainWindow::initUI()
     mainToolBar->setMovable(true);
     mainToolBar->setFloatable(true);
 
-    // 添加调试信息
-    // qDebug() << "Resource paths:" << QDir(":/").entryList();
-    // qDebug() << "Icon paths:" << QDir(":/icons").entryList();
 
     // 设置工具栏按钮大小
     mainToolBar->setIconSize(QSize(20, 20));
@@ -3847,86 +3844,6 @@ void MainWindow::onCellEdited(QTableWidgetItem *item)
     }
     qDebug() << "=== 单元格编辑处理完成 ===";
 }
-
-// void MainWindow::onEditSQLResult()
-// {
-//     if (!sqlResultDisplay) {
-//         qDebug() << "SQL结果显示表格未初始化";
-//         return;
-//     }
-
-//     // 获取当前选中的单元格
-//     QList<QTableWidgetItem*> selectedItems = sqlResultDisplay->selectedItems();
-//     if (selectedItems.isEmpty()) {
-//         QMessageBox::information(this, "提示", "请先选择要编辑的单元格");
-//         return;
-//     }
-
-//     QTableWidgetItem *item = selectedItems.first();
-//     int row = item->row();
-//     int col = item->column();
-
-//     // 获取列名和主键值
-//     QString columnName = sqlResultDisplay->horizontalHeaderItem(col)->text();
-//     QString primaryKeyValue = sqlResultDisplay->item(row, 0)->text();
-
-//     // 创建编辑对话框
-//     QDialog dialog(this);
-//     dialog.setWindowTitle("编辑单元格");
-//     QVBoxLayout *layout = new QVBoxLayout(&dialog);
-
-//     // 添加标签显示当前编辑的单元格信息
-//     QLabel *infoLabel = new QLabel(QString("正在编辑: %1 (行: %2, 列: %3)")
-//                                   .arg(columnName)
-//                                   .arg(row + 1)
-//                                   .arg(col + 1), &dialog);
-//     layout->addWidget(infoLabel);
-
-//     // 添加文本编辑框
-//     QLineEdit *edit = new QLineEdit(&dialog);
-//     edit->setText(item->text());
-//     layout->addWidget(edit);
-
-//     // 添加按钮
-//     QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
-//     layout->addWidget(buttonBox);
-
-//     // 连接按钮信号
-//     connect(buttonBox, &QDialogButtonBox::accepted, [&]() {
-//         QString newValue = edit->text();
-//         QString oldValue = item->text();
-
-//         if (newValue == oldValue) {
-//             dialog.reject();
-//             return;
-//         }
-
-//         // 构建更新语句
-//         QString sql = QString("UPDATE %1 SET %2 = %3 WHERE rowid = %4")
-//                          .arg(currentTable)
-//                          .arg(columnName)
-//                          .arg(newValue)
-//                          .arg(primaryKeyValue);
-
-//         // 执行更新
-//         char *errmsg = nullptr;
-//         int rc = GNCDB_exec(db, sql.toUtf8().constData(), nullptr, nullptr, &errmsg);
-//         qDebug() << "执行SQL:" << sql;
-//         if (rc != 0) {
-//             QMessageBox::critical(this, "错误", QString("更新失败: %1").arg(Rc2Msg::getErrorMsg(rc, errmsg ? QString(errmsg) : QString())));
-//             if (errmsg) free(errmsg);
-//         } else {
-//             // 更新表格显示
-//             item->setText(newValue);
-//             dialog.accept();
-//         }
-//     });
-
-//     connect(buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-
-//     // 显示对话框
-//     dialog.exec();
-// }
 
 void MainWindow::onSearchTable()
 {

@@ -194,7 +194,7 @@ private:
     void updateTableList();
     void showTableData(const QString &tableName);
     void showError(const QString &message);
-    void setupTableManagementActions();
+    //void setupTableManagementActions();
     void showEditRowDialog(const QStringList &rowData = QStringList());
     void executeInsertSQL(const QString &tableName, const QStringList &values);
     void executeUpdateSQL(const QString &tableName, const QStringList &values, int rowIndex, const QMap<int, FieldType> &columnFieldTypes);

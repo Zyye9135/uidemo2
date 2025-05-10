@@ -1,5 +1,6 @@
 gncdblib/
 build/
 dsapi
-.db
+*.db
 log/
+*.bak
