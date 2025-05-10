@@ -35,7 +35,12 @@
 #include <QSizePolicy>
 #include <QStyledItemDelegate>
 #include <QPainter>
+#include <QPainterPath>  // 添加QPainterPath头文件
 #include "rc2msg.h"
+// 新添加的头文件
+#include <QSettings>
+#include <QCloseEvent>
+#include <QCoreApplication>
 
 // 定义一个结构体来存储表名
 struct TableInfo
@@ -192,8 +197,20 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow), dbManager(new DBManager()), db(nullptr), mainSplitter(nullptr), tableTree(nullptr), rightTabWidget(nullptr), dataTable(nullptr), sqlEditor(nullptr), databaseTab(nullptr), statusBar(nullptr), ddlEditor(nullptr), sqlResultDisplay(nullptr), sqlHighlighter(nullptr), dbNameLabel(nullptr), tableNameLabel(nullptr), dbPathLabel(nullptr), dbTitleLabel(nullptr)
 {
     ui->setupUi(this);
+    
+    // 设置程序标题
+    setWindowTitle("GNCDB - 数据库管理工具");
+    
+    // 初始化设置文件路径
+    QDir appDir = QDir(QCoreApplication::applicationDirPath());
+    settingsFilePath = appDir.filePath("settings.ini");
+    
+    // 加载上次的窗口设置
+    loadWindowSettings();
+    
+    // 初始化界面
     initUI();
-
+    
     // 初始化SQL高亮器
     if (sqlEditor && sqlEditor->document())
     {
@@ -206,6 +223,8 @@ MainWindow::MainWindow(QWidget *parent)
     }
 
     initConnections();
+    
+
 }
 
 MainWindow::~MainWindow()
@@ -270,9 +289,53 @@ void MainWindow::initUI()
     // 添加调试信息
     qDebug() << "开始初始化视图菜单...";
 
-    // 添加树形图选项（暂时禁用）
+    // 添加树形图选项（改为可勾选）
     QAction *treeAction = viewMenu->addAction(tr("树形图"));
-    treeAction->setEnabled(false);
+    treeAction->setCheckable(true);
+    treeAction->setChecked(true);
+
+    // 创建自定义复选框图标
+    QPixmap checkedPixmap(16, 16);
+    checkedPixmap.fill(Qt::transparent);
+    QPainter checkedPainter(&checkedPixmap);
+    checkedPainter.setPen(QPen(Qt::black, 2));
+    checkedPainter.drawRect(2, 2, 12, 12);
+    checkedPainter.drawLine(4, 8, 7, 11);
+    checkedPainter.drawLine(7, 11, 12, 4);
+    QIcon checkedIcon(checkedPixmap);
+
+    QPixmap uncheckedPixmap(16, 16);
+    uncheckedPixmap.fill(Qt::transparent);
+    QPainter uncheckedPainter(&uncheckedPixmap);
+    uncheckedPainter.setPen(QPen(Qt::black, 2));
+    uncheckedPainter.drawRect(2, 2, 12, 12);
+    QIcon uncheckedIcon(uncheckedPixmap);
+
+    qDebug() << "创建复选框图标完成";
+
+    // 设置树形图图标
+    treeAction->setIcon(checkedIcon);
+
+    // 连接树形图切换信号
+    connect(treeAction, &QAction::triggered, [this, treeAction, checkedIcon, uncheckedIcon](bool checked) {
+        qDebug() << "树形图状态改变:" << checked;
+        if (mainSplitter) {
+            // 如果隐藏树形图，则将其大小设为0
+            QList<int> sizes = mainSplitter->sizes();
+            if (!checked) {
+                // 保存当前大小比例，以便恢复时使用
+                mainSplitter->setProperty("savedTreeSize", sizes[0]);
+                sizes[0] = 0;
+            } else {
+                // 恢复之前保存的大小，或使用默认值
+                int savedSize = mainSplitter->property("savedTreeSize").toInt();
+                sizes[0] = savedSize > 0 ? savedSize : 300;
+            }
+            mainSplitter->setSizes(sizes);
+            treeAction->setIcon(checked ? checkedIcon : uncheckedIcon);
+            qDebug() << "设置树形图可见性:" << checked;
+        }
+    });
 
     viewMenu->addSeparator();
 
@@ -294,25 +357,6 @@ void MainWindow::initUI()
     sqlTabAction->setCheckable(true);
 
     qDebug() << "设置标签页 Checkable 属性完成";
-
-    // 创建自定义复选框图标
-    QPixmap checkedPixmap(16, 16);
-    checkedPixmap.fill(Qt::transparent);
-    QPainter checkedPainter(&checkedPixmap);
-    checkedPainter.setPen(QPen(Qt::black, 2));
-    checkedPainter.drawRect(2, 2, 12, 12);
-    checkedPainter.drawLine(4, 8, 7, 11);
-    checkedPainter.drawLine(7, 11, 12, 4);
-    QIcon checkedIcon(checkedPixmap);
-
-    QPixmap uncheckedPixmap(16, 16);
-    uncheckedPixmap.fill(Qt::transparent);
-    QPainter uncheckedPainter(&uncheckedPixmap);
-    uncheckedPainter.setPen(QPen(Qt::black, 2));
-    uncheckedPainter.drawRect(2, 2, 12, 12);
-    QIcon uncheckedIcon(uncheckedPixmap);
-
-    qDebug() << "创建复选框图标完成";
 
     // 设置初始状态为选中并设置图标
     dbTabAction->setChecked(true);
@@ -655,7 +699,46 @@ void MainWindow::initUI()
     rightTabWidget->setElideMode(Qt::ElideRight);
     rightTabWidget->setUsesScrollButtons(true);
     rightTabWidget->setTabBarAutoHide(false);
-    rightTabWidget->setStyleSheet("QTabWidget::pane { border: 1px solid #C0C0C0; }");
+    
+    // 创建自定义的关闭按钮图标
+    QPixmap closePixmap(16, 16);
+    closePixmap.fill(Qt::transparent);
+    QPainter closePainter(&closePixmap);
+    closePainter.setRenderHint(QPainter::Antialiasing);
+    closePainter.setPen(QPen(QColor(120, 120, 120), 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    closePainter.drawLine(4, 4, 12, 12);
+    closePainter.drawLine(12, 4, 4, 12);
+    QIcon closeIcon(closePixmap);
+    
+    // 自定义标签页样式，使用内存中创建的图标
+    rightTabWidget->setStyleSheet(R"(
+        QTabWidget::pane { 
+            border: 1px solid #C0C0C0; 
+        }
+        QTabBar::tab {
+            background: #F0F0F0;
+            border: 1px solid #C0C0C0;
+            border-bottom-color: #C0C0C0;
+            border-top-left-radius: 4px;
+            border-top-right-radius: 4px;
+            min-width: 8ex;
+            padding: 2px 8px;
+            padding-right: 20px; /* 为关闭按钮留出空间 */
+            margin-right: 1px;
+        }
+        QTabBar::tab:selected {
+            background: #FFFFFF;
+            border-bottom-color: #FFFFFF;
+        }
+        QTabBar::tab:hover {
+            background: #E0E0E0;
+        }
+    )");
+    
+    // 为每个标签页设置自定义关闭按钮图标
+    for (int i = 0; i < rightTabWidget->count(); i++) {
+        rightTabWidget->tabBar()->setTabButton(i, QTabBar::RightSide, createTabCloseButton());
+    }
 
     qDebug() << "创建右侧标签页区域完成";
 
@@ -675,10 +758,11 @@ void MainWindow::initUI()
     QWidget *sqlTab = new QWidget();
     rightTabWidget->addTab(sqlTab, "SQL");
 
-    // 立即设置所有标签页为可见
+    // 立即设置所有标签页为可见并设置自定义关闭按钮
     for(int i = 0; i < rightTabWidget->count(); i++) {
         rightTabWidget->setTabVisible(i, true);
-        qDebug() << "设置标签页" << i << "可见性为: true";
+        rightTabWidget->tabBar()->setTabButton(i, QTabBar::RightSide, createTabCloseButton());
+        qDebug() << "设置标签页" << i << "可见性为: true 并应用自定义关闭按钮";
     }
 
     // 同步菜单项的选中状态
@@ -1256,6 +1340,83 @@ void MainWindow::initUI()
     // 设置分割器初始比例（30:70）
     mainSplitter->setStretchFactor(0, 3);
     mainSplitter->setStretchFactor(1, 7);
+    
+    // 尝试从设置中恢复分割器位置
+    QSettings settings(settingsFilePath, QSettings::IniFormat);
+    settings.beginGroup("Splitter");
+    
+    // 首先检查是否需要从这些设置恢复分割器大小
+    if(settings.contains("Sizes"))
+    {
+        QList<int> savedSizes = settings.value("Sizes").value<QList<int>>();
+        if(savedSizes.size() == 2) 
+        {
+            qDebug() << "恢复分割器位置:" << savedSizes;
+            mainSplitter->setSizes(savedSizes);
+        }
+    }
+    
+    // 然后检查树形图的可见性
+    bool treeVisible = property("settingsTreeVisible").toBool();
+    int savedTreeSize = property("settingsSavedTreeSize").toInt();
+    
+    if (!treeVisible && savedTreeSize > 0) {
+        // 如果树形图应该隐藏，记录保存的大小并设置大小为0
+        mainSplitter->setProperty("savedTreeSize", savedTreeSize);
+        QList<int> sizes = mainSplitter->sizes();
+        sizes[0] = 0;
+        mainSplitter->setSizes(sizes);
+        
+        // 同时更新视图菜单中的状态
+        QList<QAction*> actions = viewMenu->actions();
+        if (!actions.isEmpty()) {
+            QAction* treeAction = actions.first(); // 第一个动作应该是树形图
+            if (treeAction) {
+                treeAction->setChecked(false);
+                
+                // 更新图标
+                QPixmap uncheckedPixmap(16, 16);
+                uncheckedPixmap.fill(Qt::transparent);
+                QPainter uncheckedPainter(&uncheckedPixmap);
+                uncheckedPainter.setPen(QPen(Qt::black, 2));
+                uncheckedPainter.drawRect(2, 2, 12, 12);
+                QIcon uncheckedIcon(uncheckedPixmap);
+                
+                treeAction->setIcon(uncheckedIcon);
+            }
+        }
+    }
+    
+    settings.endGroup();
+    
+    // 恢复标签页的可见状态
+    settings.beginGroup("Tabs");
+    for (int i = 0; i < rightTabWidget->count(); ++i)
+    {
+        bool visible = settings.value(QString("Tab%1Visible").arg(i), true).toBool();
+        rightTabWidget->setTabVisible(i, visible);
+        
+        // 更新菜单项的状态
+        QList<QAction*> actions = viewMenu->actions();
+        if (actions.size() > i + 2) { // +2是因为有树形图和分隔符
+            QAction* action = actions[i + 2];
+            action->setChecked(visible);
+            
+            // 更新图标
+            QPixmap pixmap(16, 16);
+            pixmap.fill(Qt::transparent);
+            QPainter painter(&pixmap);
+            painter.setPen(QPen(Qt::black, 2));
+            painter.drawRect(2, 2, 12, 12);
+            if (visible) {
+                painter.drawLine(4, 8, 7, 11);
+                painter.drawLine(7, 11, 12, 4);
+            }
+            QIcon icon(pixmap);
+            action->setIcon(icon);
+        }
+    }
+    settings.endGroup();
 
     // 状态栏
     statusBar = new QStatusBar(this);
@@ -1276,6 +1437,38 @@ void MainWindow::initUI()
     // 初始化其他成员变量
     currentTable.clear();
     currentColumnNames.clear();
+
+    // 连接菜单项信号，确保当标签页通过菜单显示时也应用自定义关闭按钮
+    QList<QAction*> menuActions = viewMenu->actions();
+    for(int i = 2; i < menuActions.size(); i++) {
+        if(QAction* action = menuActions[i]) {
+            int tabIndex = i-2;  // 计算对应的标签页索引
+            connect(action, &QAction::triggered, [this, tabIndex]() {
+                if(rightTabWidget && tabIndex >= 0 && tabIndex < rightTabWidget->count()) {
+                    // 当标签页通过菜单变为可见时设置自定义关闭按钮
+                    if(rightTabWidget->isTabVisible(tabIndex)) {
+                        // 检查是否已经有了关闭按钮
+                        if(!rightTabWidget->tabBar()->tabButton(tabIndex, QTabBar::RightSide) ||
+                           !rightTabWidget->tabBar()->tabButton(tabIndex, QTabBar::RightSide)->isVisible()) {
+                            rightTabWidget->tabBar()->setTabButton(tabIndex, QTabBar::RightSide, createTabCloseButton());
+                        }
+                    }
+                }
+            });
+        }
+    }
+    
+    // 当标签页可见性变化时检查并应用自定义关闭按钮
+    connect(rightTabWidget, &QTabWidget::tabBarClicked, [this](int index) {
+        // 确保可见标签页有自定义关闭按钮
+        if(rightTabWidget->isTabVisible(index)) {
+            QWidget* closeButton = rightTabWidget->tabBar()->tabButton(index, QTabBar::RightSide);
+            if(!closeButton || !closeButton->isVisible()) {
+                rightTabWidget->tabBar()->setTabButton(index, QTabBar::RightSide, createTabCloseButton());
+                qDebug() << "为标签页" << index << "添加了关闭按钮";
+            }
+        }
+    });
 }
 
 void MainWindow::initConnections()
@@ -1328,6 +1521,51 @@ void MainWindow::initConnections()
                 }
             }
         } });
+
+    // 添加标签页添加事件处理，为新添加的标签页设置自定义关闭按钮
+    connect(rightTabWidget->tabBar(), &QTabBar::tabBarDoubleClicked, [this](int index) {
+        // 双击标签页标题时，如果该标签隐藏，则显示它
+        if (!rightTabWidget->isTabVisible(index)) {
+            rightTabWidget->setTabVisible(index, true);
+            
+            // 更新对应菜单项的状态
+            QAction* action = nullptr;
+            switch (index) {
+                case 0: action = viewMenu->actions()[2]; break;  // 数据库标签
+                case 1: action = viewMenu->actions()[3]; break;  // 数据标签
+                case 2: action = viewMenu->actions()[4]; break;  // DDL标签
+                case 3: action = viewMenu->actions()[5]; break;  // 设计标签
+                case 4: action = viewMenu->actions()[6]; break;  // SQL标签
+            }
+            
+            if (action) {
+                action->setChecked(true);
+                
+                // 创建自定义勾选图标
+                QPixmap checkedPixmap(16, 16);
+                checkedPixmap.fill(Qt::transparent);
+                QPainter checkedPainter(&checkedPixmap);
+                checkedPainter.setPen(QPen(Qt::black, 2));
+                checkedPainter.drawRect(2, 2, 12, 12);
+                checkedPainter.drawLine(4, 8, 7, 11);
+                checkedPainter.drawLine(7, 11, 12, 4);
+                QIcon checkedIcon(checkedPixmap);
+                
+                action->setIcon(checkedIcon);
+            }
+        }
+    });
+    
+    // 当标签页可见性改变时，重新设置关闭按钮
+    connect(rightTabWidget, &QTabWidget::tabBarClicked, [this](int) {
+        // 为所有可见的标签页设置自定义关闭按钮
+        for (int i = 0; i < rightTabWidget->count(); i++) {
+            if (rightTabWidget->isTabVisible(i) && 
+                rightTabWidget->tabBar()->tabButton(i, QTabBar::RightSide) == nullptr) {
+                rightTabWidget->tabBar()->setTabButton(i, QTabBar::RightSide, createTabCloseButton());
+            }
+        }
+    });
 
     // 添加焦点变化事件处理
     connect(qApp, &QApplication::focusChanged, this, [this](QWidget *old, QWidget *now)
@@ -2749,9 +2987,17 @@ void MainWindow::onViewAction()
 {
     QMenu viewMenu(this);
 
-    // 添加树形图选项（暂时禁用）
+    // 添加树形图选项
     QAction *treeAction = viewMenu.addAction("树形图");
-    treeAction->setEnabled(false);
+    treeAction->setCheckable(true);
+    
+    // 获取当前左侧面板的可见状态
+    bool isTreeVisible = true;
+    if (mainSplitter) {
+        QList<int> sizes = mainSplitter->sizes();
+        isTreeVisible = sizes[0] > 0;
+    }
+    treeAction->setChecked(isTreeVisible);
 
     // 添加分隔线
     viewMenu.addSeparator();
@@ -2781,21 +3027,11 @@ void MainWindow::onViewAction()
     QIcon uncheckedIcon(uncheckedPixmap);
 
     // 设置复选框
-    dbTabAction->setChecked(true);
+    dbTabAction->setCheckable(true);
     dataTabAction->setCheckable(true);
     ddlTabAction->setCheckable(true);
     designTabAction->setCheckable(true);
     sqlTabAction->setCheckable(true);
-
-    // 同步设置标签页可见性
-    if (rightTabWidget)
-    {
-        rightTabWidget->setTabVisible(0, true);
-        rightTabWidget->setTabVisible(1, true);
-        rightTabWidget->setTabVisible(2, true);
-        rightTabWidget->setTabVisible(3, true);
-        rightTabWidget->setTabVisible(4, true);
-    }
 
     // 根据当前标签页的可见性设置复选框状态和图标
     dbTabAction->setChecked(rightTabWidget->isTabVisible(0));
@@ -2803,7 +3039,8 @@ void MainWindow::onViewAction()
     ddlTabAction->setChecked(rightTabWidget->isTabVisible(2));
     designTabAction->setChecked(rightTabWidget->isTabVisible(3));
     sqlTabAction->setChecked(rightTabWidget->isTabVisible(4));
-
+    
+    treeAction->setIcon(isTreeVisible ? checkedIcon : uncheckedIcon);
     dbTabAction->setIcon(dbTabAction->isChecked() ? checkedIcon : uncheckedIcon);
     dataTabAction->setIcon(dataTabAction->isChecked() ? checkedIcon : uncheckedIcon);
     ddlTabAction->setIcon(ddlTabAction->isChecked() ? checkedIcon : uncheckedIcon);
@@ -2815,7 +3052,25 @@ void MainWindow::onViewAction()
 
     if (selectedAction)
     {
-        if (selectedAction == dbTabAction)
+        if (selectedAction == treeAction)
+        {
+            // 处理树形图的显示/隐藏
+            if (mainSplitter) {
+                QList<int> sizes = mainSplitter->sizes();
+                if (!treeAction->isChecked()) {
+                    // 保存当前大小比例，以便恢复时使用
+                    mainSplitter->setProperty("savedTreeSize", sizes[0]);
+                    sizes[0] = 0;
+                } else {
+                    // 恢复之前保存的大小，或使用默认值
+                    int savedSize = mainSplitter->property("savedTreeSize").toInt();
+                    sizes[0] = savedSize > 0 ? savedSize : 300;
+                }
+                mainSplitter->setSizes(sizes);
+                treeAction->setIcon(treeAction->isChecked() ? checkedIcon : uncheckedIcon);
+            }
+        }
+        else if (selectedAction == dbTabAction)
         {
             rightTabWidget->setTabVisible(0, dbTabAction->isChecked());
             dbTabAction->setIcon(dbTabAction->isChecked() ? checkedIcon : uncheckedIcon);
@@ -2989,6 +3244,8 @@ void MainWindow::closeEvent(QCloseEvent *event)
     }
 
     // 接受关闭事件
+    saveWindowSettings();
+    QMainWindow::closeEvent(event);
     event->accept();
 }
 
@@ -4358,3 +4615,189 @@ void MainWindow::refreshTable()
         }
     }
 }
+
+// 保存窗口设置到配置文件
+void MainWindow::saveWindowSettings()
+{
+    qDebug() << "保存窗口设置到" << settingsFilePath;
+    
+    QSettings settings(settingsFilePath, QSettings::IniFormat);
+    
+    // 保存窗口大小和位置
+    settings.beginGroup("Window");
+    settings.setValue("Size", size());
+    settings.setValue("Position", pos());
+    settings.setValue("Maximized", isMaximized());
+    settings.endGroup();
+    
+    // 保存分割器位置（如果存在）
+    if (mainSplitter)
+    {
+        settings.beginGroup("Splitter");
+        settings.setValue("Sizes", QVariant::fromValue(mainSplitter->sizes()));
+        
+        // 保存树形图的可见状态
+        QList<int> sizes = mainSplitter->sizes();
+        settings.setValue("TreeVisible", sizes[0] > 0);
+        
+        // 如果树形图当前不可见，保存之前的大小
+        if (sizes[0] == 0) {
+            int savedSize = mainSplitter->property("savedTreeSize").toInt();
+            if (savedSize > 0) {
+                settings.setValue("SavedTreeSize", savedSize);
+            }
+        }
+        
+        settings.endGroup();
+    }
+    
+    // 保存标签页的可见状态
+    if (rightTabWidget)
+    {
+        settings.beginGroup("Tabs");
+        for (int i = 0; i < rightTabWidget->count(); ++i)
+        {
+            settings.setValue(QString("Tab%1Visible").arg(i), rightTabWidget->isTabVisible(i));
+        }
+        settings.endGroup();
+    }
+    
+    settings.sync();
+    qDebug() << "窗口设置已保存";
+}
+
+// 从配置文件加载窗口设置
+void MainWindow::loadWindowSettings()
+{
+    qDebug() << "从" << settingsFilePath << "加载窗口设置";
+    
+    QSettings settings(settingsFilePath, QSettings::IniFormat);
+    
+    // 恢复窗口大小和位置
+    settings.beginGroup("Window");
+    QSize savedSize = settings.value("Size", QSize(1000, 700)).toSize();
+    QPoint savedPos = settings.value("Position", QPoint(100, 100)).toPoint();
+    bool wasMaximized = settings.value("Maximized", false).toBool();
+    settings.endGroup();
+    
+    if (wasMaximized)
+    {
+        showMaximized();
+    }
+    else
+    {
+        resize(savedSize);
+        move(savedPos);
+    }
+    
+    // 分割器位置和树形图可见性将在initUI中恢复，因为此时mainSplitter还未创建
+    settings.beginGroup("Splitter");
+    bool treeVisible = settings.value("TreeVisible", true).toBool();
+    int savedTreeSize = settings.value("SavedTreeSize", 300).toInt();
+    settings.endGroup();
+    
+    // 保存这些值为属性，以便在initUI中使用
+    setProperty("settingsTreeVisible", treeVisible);
+    setProperty("settingsSavedTreeSize", savedTreeSize);
+}
+
+// 创建自定义标签页关闭按钮
+QWidget* MainWindow::createTabCloseButton()
+{
+    // 创建按钮
+    QToolButton* closeButton = new QToolButton();
+    closeButton->setFixedSize(16, 16);
+    
+    // 创建黑色X图标
+    QPixmap normalPixmap(16, 16);
+    normalPixmap.fill(Qt::transparent);
+    QPainter normalPainter(&normalPixmap);
+    normalPainter.setRenderHint(QPainter::Antialiasing);
+    normalPainter.setPen(QPen(Qt::black, 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    normalPainter.drawLine(4, 4, 12, 12);
+    normalPainter.drawLine(12, 4, 4, 12);
+    
+    // 设置图标
+    closeButton->setIcon(QIcon(normalPixmap));
+    closeButton->setIconSize(QSize(16, 16));
+    
+    // 设置样式，使用伪状态(pseudo-state)实现悬停效果
+    closeButton->setStyleSheet(R"(
+        QToolButton {
+            background: transparent;
+            border: none;
+        }
+        QToolButton:hover {
+            background: #FF0000;
+            border-radius: 8px;
+        }
+        QToolButton:pressed {
+            background: #CC0000;
+        }
+    )");
+    
+    // 当按钮被悬停时，修改图标颜色
+    class EventFilter : public QObject {
+    public:
+        EventFilter(QToolButton* button) : QObject(button), btn(button) {
+            // 创建普通图标
+            QPixmap normal(16, 16);
+            normal.fill(Qt::transparent);
+            QPainter np(&normal);
+            np.setRenderHint(QPainter::Antialiasing);
+            np.setPen(QPen(Qt::black, 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+            np.drawLine(4, 4, 12, 12);
+            np.drawLine(12, 4, 4, 12);
+            normalIcon = QIcon(normal);
+            
+            // 创建悬停图标（白色X）
+            QPixmap hover(16, 16);
+            hover.fill(Qt::transparent);
+            QPainter hp(&hover);
+            hp.setRenderHint(QPainter::Antialiasing);
+            hp.setPen(QPen(Qt::white, 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+            hp.drawLine(4, 4, 12, 12);
+            hp.drawLine(12, 4, 4, 12);
+            hoverIcon = QIcon(hover);
+            
+            btn->setIcon(normalIcon);
+        }
+        
+        bool eventFilter(QObject* watched, QEvent* event) override {
+            if (watched == btn) {
+                if (event->type() == QEvent::Enter) {
+                    btn->setIcon(hoverIcon);
+                } else if (event->type() == QEvent::Leave) {
+                    btn->setIcon(normalIcon);
+                }
+            }
+            return QObject::eventFilter(watched, event);
+        }
+        
+    private:
+        QToolButton* btn;
+        QIcon normalIcon;
+        QIcon hoverIcon;
+    };
+    
+    // 安装事件过滤器
+    EventFilter* filter = new EventFilter(closeButton);
+    closeButton->installEventFilter(filter);
+    
+    // 设置光标样式
+    closeButton->setCursor(Qt::PointingHandCursor);
+    
+    // 连接点击信号
+    connect(closeButton, &QToolButton::clicked, [this, closeButton]() {
+        for (int i = 0; i < rightTabWidget->count(); i++) {
+            if (rightTabWidget->tabBar()->tabButton(i, QTabBar::RightSide) == closeButton) {
+                emit rightTabWidget->tabCloseRequested(i);
+                break;
+            }
+        }
+    });
+    
+    return closeButton;
+}
+
+

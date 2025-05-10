@@ -134,6 +134,10 @@ private slots:
     void onVacuumDatabase(); // 压缩数据库
     void refreshTable();  // 添加刷新方法声明
 
+    // 添加保存和恢复窗口设置的函数
+    void saveWindowSettings();
+    void loadWindowSettings();
+
 private:
     Ui::MainWindow *ui;
     DBManager *dbManager;
@@ -182,6 +186,9 @@ private:
     QLabel *tableNameLabel;
     QLabel *dbPathLabel;
 
+    // 添加配置文件对象
+    QString settingsFilePath;
+
     void initUI();
     void initConnections();
     void updateTableList();
@@ -196,6 +203,7 @@ private:
     FieldType getFieldTypeFromString(const QString &typeStr);
     QString getFieldTypeName(int typeId);
     void loadTableColumns(QTreeWidgetItem *tableItem);
+    QWidget* createTabCloseButton(); // 创建自定义标签页关闭按钮
 };
 
 // 添加TreeItemDelegate类声明
