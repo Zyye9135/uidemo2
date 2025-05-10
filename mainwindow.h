@@ -30,6 +30,8 @@
 #include <QCloseEvent>
 #include <QStyledItemDelegate>
 #include <QGroupBox>
+#include <QPainter>
+#include <QPixmap>
 #include "gncdblib/include/gncdb.h"
 #include "database/dbmanager.h"
 #include "database/sqlresult.h"
@@ -119,6 +121,7 @@ private slots:
     void onShowDatabaseTab();
     void onShowDataTab();
     void onShowDDLTab();
+    void onShowDesignTab();
     void onShowSQLTab();
     void onZoomIn();
     void onZoomOut();

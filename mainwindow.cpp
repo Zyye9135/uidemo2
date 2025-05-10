@@ -266,11 +266,114 @@ void MainWindow::initUI()
 
     // 视图菜单
     viewMenu = menuBar->addMenu(tr("视图(&V)"));
-    viewMenu->addAction(tr("树形图"), this, &MainWindow::onShowTreeView);
-    viewMenu->addAction(tr("数据库标签"), this, &MainWindow::onShowDatabaseTab);
-    viewMenu->addAction(tr("数据标签"), this, &MainWindow::onShowDataTab);
-    viewMenu->addAction(tr("DDL标签"), this, &MainWindow::onShowDDLTab);
-    viewMenu->addAction(tr("SQL标签"), this, &MainWindow::onShowSQLTab);
+
+    // 添加调试信息
+    qDebug() << "开始初始化视图菜单...";
+
+    // 添加树形图选项（暂时禁用）
+    QAction *treeAction = viewMenu->addAction(tr("树形图"));
+    treeAction->setEnabled(false);
+
+    viewMenu->addSeparator();
+
+    // 添加标签页选项，带复选框
+    QAction *dbTabAction = viewMenu->addAction(tr("数据库标签"));
+    QAction *dataTabAction = viewMenu->addAction(tr("数据标签"));
+    QAction *ddlTabAction = viewMenu->addAction(tr("DDL标签"));
+    QAction *designTabAction = viewMenu->addAction(tr("设计标签"));
+    QAction *sqlTabAction = viewMenu->addAction(tr("SQL标签"));
+
+    // 调试信息
+    qDebug() << "创建标签页 Actions 完成";
+
+    // 设置复选框
+    dbTabAction->setCheckable(true);
+    dataTabAction->setCheckable(true);
+    ddlTabAction->setCheckable(true);
+    designTabAction->setCheckable(true);
+    sqlTabAction->setCheckable(true);
+
+    qDebug() << "设置标签页 Checkable 属性完成";
+
+    // 创建自定义复选框图标
+    QPixmap checkedPixmap(16, 16);
+    checkedPixmap.fill(Qt::transparent);
+    QPainter checkedPainter(&checkedPixmap);
+    checkedPainter.setPen(QPen(Qt::black, 2));
+    checkedPainter.drawRect(2, 2, 12, 12);
+    checkedPainter.drawLine(4, 8, 7, 11);
+    checkedPainter.drawLine(7, 11, 12, 4);
+    QIcon checkedIcon(checkedPixmap);
+
+    QPixmap uncheckedPixmap(16, 16);
+    uncheckedPixmap.fill(Qt::transparent);
+    QPainter uncheckedPainter(&uncheckedPixmap);
+    uncheckedPainter.setPen(QPen(Qt::black, 2));
+    uncheckedPainter.drawRect(2, 2, 12, 12);
+    QIcon uncheckedIcon(uncheckedPixmap);
+
+    qDebug() << "创建复选框图标完成";
+
+    // 设置初始状态为选中并设置图标
+    dbTabAction->setChecked(true);
+    dataTabAction->setChecked(true);
+    ddlTabAction->setChecked(true);
+    designTabAction->setChecked(true);
+    sqlTabAction->setChecked(true);
+
+    dbTabAction->setIcon(checkedIcon);
+    dataTabAction->setIcon(checkedIcon);
+    ddlTabAction->setIcon(checkedIcon);
+    designTabAction->setIcon(checkedIcon);
+    sqlTabAction->setIcon(checkedIcon);
+
+    qDebug() << "设置标签页初始状态和图标完成";
+
+    // 连接信号和槽
+    connect(dbTabAction, &QAction::triggered, [this, dbTabAction, checkedIcon, uncheckedIcon](bool checked) {
+        qDebug() << "数据库标签页状态改变:" << checked;
+        if (rightTabWidget) {
+            rightTabWidget->setTabVisible(0, checked);
+            dbTabAction->setIcon(checked ? checkedIcon : uncheckedIcon);
+            qDebug() << "设置数据库标签页可见性:" << checked;
+        }
+    });
+
+    connect(dataTabAction, &QAction::triggered, [this, dataTabAction, checkedIcon, uncheckedIcon](bool checked) {
+        qDebug() << "数据标签页状态改变:" << checked;
+        if (rightTabWidget) {
+            rightTabWidget->setTabVisible(1, checked);
+            dataTabAction->setIcon(checked ? checkedIcon : uncheckedIcon);
+            qDebug() << "设置数据标签页可见性:" << checked;
+        }
+    });
+
+    connect(ddlTabAction, &QAction::triggered, [this, ddlTabAction, checkedIcon, uncheckedIcon](bool checked) {
+        qDebug() << "DDL标签页状态改变:" << checked;
+        if (rightTabWidget) {
+            rightTabWidget->setTabVisible(2, checked);
+            ddlTabAction->setIcon(checked ? checkedIcon : uncheckedIcon);
+            qDebug() << "设置DDL标签页可见性:" << checked;
+        }
+    });
+
+    connect(designTabAction, &QAction::triggered, [this, designTabAction, checkedIcon, uncheckedIcon](bool checked) {
+        qDebug() << "设计标签页状态改变:" << checked;
+        if (rightTabWidget) {
+            rightTabWidget->setTabVisible(3, checked);
+            designTabAction->setIcon(checked ? checkedIcon : uncheckedIcon);
+            qDebug() << "设置设计标签页可见性:" << checked;
+        }
+    });
+
+    connect(sqlTabAction, &QAction::triggered, [this, sqlTabAction, checkedIcon, uncheckedIcon](bool checked) {
+        qDebug() << "SQL标签页状态改变:" << checked;
+        if (rightTabWidget) {
+            rightTabWidget->setTabVisible(4, checked);
+            sqlTabAction->setIcon(checked ? checkedIcon : uncheckedIcon);
+            qDebug() << "设置SQL标签页可见性:" << checked;
+        }
+    });
 
     // SQL菜单
     sqlMenu = menuBar->addMenu(tr("SQL(&S)"));
@@ -545,9 +648,49 @@ void MainWindow::initUI()
 
     // 右侧标签页
     rightTabWidget = new QTabWidget(mainSplitter);
+    rightTabWidget->setTabPosition(QTabWidget::North);
+    rightTabWidget->setMovable(true);
+    rightTabWidget->setTabsClosable(true);
+    rightTabWidget->setDocumentMode(true);
+    rightTabWidget->setElideMode(Qt::ElideRight);
+    rightTabWidget->setUsesScrollButtons(true);
+    rightTabWidget->setTabBarAutoHide(false);
+    rightTabWidget->setStyleSheet("QTabWidget::pane { border: 1px solid #C0C0C0; }");
 
-    // 数据库标签页
+    qDebug() << "创建右侧标签页区域完成";
+
+    // 创建并添加所有标签页
     databaseTab = new QWidget();
+    rightTabWidget->addTab(databaseTab, "数据库");
+    
+    QWidget *dataTab = new QWidget();
+    rightTabWidget->addTab(dataTab, "数据");
+    
+    QWidget *ddlTab = new QWidget();
+    rightTabWidget->addTab(ddlTab, "DDL");
+    
+    QWidget *designTab = new QWidget();
+    rightTabWidget->addTab(designTab, "设计");
+    
+    QWidget *sqlTab = new QWidget();
+    rightTabWidget->addTab(sqlTab, "SQL");
+
+    // 立即设置所有标签页为可见
+    for(int i = 0; i < rightTabWidget->count(); i++) {
+        rightTabWidget->setTabVisible(i, true);
+        qDebug() << "设置标签页" << i << "可见性为: true";
+    }
+
+    // 同步菜单项的选中状态
+    QList<QAction*> viewActions = viewMenu->actions();
+    for(int i = 2; i < viewActions.size(); i++) {
+        if(QAction* action = viewActions[i]) {
+            action->setChecked(true);
+            qDebug() << "设置菜单项" << action->text() << "选中状态为: true";
+        }
+    }
+
+    // 创建数据库视图标签页
     QVBoxLayout *databaseLayout = new QVBoxLayout(databaseTab);
 
     // 创建数据库信息面板
@@ -575,13 +718,11 @@ void MainWindow::initUI()
     // 添加信息面板到数据库布局
     databaseLayout->addWidget(dbInfoGroup);
     databaseLayout->addWidget(dataTable);
-    rightTabWidget->addTab(databaseTab, "数据库");
 
     // 默认隐藏数据库信息面板
     dbInfoGroup->setVisible(false);
 
     // 数据标签页
-    QWidget *dataTab = new QWidget();
     QVBoxLayout *dataLayout = new QVBoxLayout(dataTab);
 
     // 添加功能按钮栏
@@ -696,8 +837,6 @@ void MainWindow::initUI()
     // 添加数据表格
     dataLayout->addWidget(dataTable);
 
-    rightTabWidget->addTab(dataTab, "数据");
-
     // 连接按钮信号
     connect(firstRecordBtn, &QToolButton::clicked, this, [this]()
             {
@@ -740,19 +879,16 @@ void MainWindow::initUI()
         } });
 
     // DDL标签页
-    QWidget *ddlTab = new QWidget();
     QVBoxLayout *ddlLayout = new QVBoxLayout(ddlTab);
     ddlEditor = new QTextEdit();
     ddlEditor->setReadOnly(true);
     ddlLayout->addWidget(ddlEditor);
-    rightTabWidget->addTab(ddlTab, "DDL");
 
     // 为DDL编辑器添加高亮器
     SqlHighlighter *ddlHighlighter = new SqlHighlighter(ddlEditor->document());
     ddlHighlighter->setTheme("Light");
 
     // 设计标签页
-    QWidget *designTab = new QWidget();
     QVBoxLayout *designLayout = new QVBoxLayout(designTab);
 
     // 创建表格来显示表结构
@@ -810,7 +946,6 @@ void MainWindow::initUI()
     designTable->setFrameShadow(QFrame::Sunken);
 
     designLayout->addWidget(designTable);
-    rightTabWidget->addTab(designTab, "设计");
 
     // 添加更新设计视图的函数
     auto updateDesignView = [this, designTable](const QString &tableName)
@@ -924,7 +1059,6 @@ void MainWindow::initUI()
         } });
 
     // SQL标签页
-    QWidget *sqlTab = new QWidget();
     QVBoxLayout *sqlLayout = new QVBoxLayout(sqlTab);
 
     // 创建分割器
@@ -1119,8 +1253,6 @@ void MainWindow::initUI()
     // 添加底部按钮栏到主布局
     sqlLayout->addLayout(bottomButtonLayout);
 
-    rightTabWidget->addTab(sqlTab, "SQL");
-
     // 设置分割器初始比例（30:70）
     mainSplitter->setStretchFactor(0, 3);
     mainSplitter->setStretchFactor(1, 7);
@@ -1156,6 +1288,46 @@ void MainWindow::initConnections()
             return;
         }
         onTableSelected(item, 0); });
+
+    // 添加标签页关闭事件处理
+    connect(rightTabWidget, &QTabWidget::tabCloseRequested, this, [this](int index)
+            {
+        // 获取对应的菜单动作
+        QAction* action = nullptr;
+        switch (index) {
+            case 0: action = viewMenu->actions()[2]; break;  // 数据库标签
+            case 1: action = viewMenu->actions()[3]; break;  // 数据标签
+            case 2: action = viewMenu->actions()[4]; break;  // DDL标签
+            case 3: action = viewMenu->actions()[5]; break;  // 设计标签
+            case 4: action = viewMenu->actions()[6]; break;  // SQL标签
+        }
+        
+        if (action) {
+            // 创建自定义未勾选图标
+            QPixmap uncheckedPixmap(16, 16);
+            uncheckedPixmap.fill(Qt::transparent);
+            QPainter uncheckedPainter(&uncheckedPixmap);
+            uncheckedPainter.setPen(QPen(Qt::black, 2));
+            uncheckedPainter.drawRect(2, 2, 12, 12);
+            QIcon uncheckedIcon(uncheckedPixmap);
+            
+            // 取消选中状态
+            action->setChecked(false);
+            // 设置自定义图标
+            action->setIcon(uncheckedIcon);
+            // 隐藏标签页
+            rightTabWidget->setTabVisible(index, false);
+            
+            // 如果当前显示的标签页被隐藏，则切换到第一个可见的标签页
+            if (!rightTabWidget->isTabVisible(rightTabWidget->currentIndex())) {
+                for (int i = 0; i < rightTabWidget->count(); ++i) {
+                    if (rightTabWidget->isTabVisible(i)) {
+                        rightTabWidget->setCurrentIndex(i);
+                        break;
+                    }
+                }
+            }
+        } });
 
     // 添加焦点变化事件处理
     connect(qApp, &QApplication::focusChanged, this, [this](QWidget *old, QWidget *now)
@@ -1221,7 +1393,7 @@ void MainWindow::initConnections()
 
 void MainWindow::onConnectDB()
 {
-    QString fileName = QFileDialog::getOpenFileName(this, tr("打开数据库"), "", tr("SQLite数据库文件 (*.db *.sqlite *.sqlite3)"));
+    QString fileName = QFileDialog::getOpenFileName(this, tr("打开数据库"), "", tr("数据库文件 (*.db *.dat)"));
     if (fileName.isEmpty())
     {
         return;
@@ -1737,7 +1909,7 @@ void MainWindow::showCreateTableDialog()
         colName->setPlaceholderText("列名");
 
         QComboBox *colType = new QComboBox(&dialog);
-        colType->addItems({"INT", "REAL", "CHAR"});
+        colType->addItems({"Integer", "Real", "VarChar(n)"}); // 显示友好的类型名称
 
         QSpinBox *colLength = new QSpinBox(&dialog);
         colLength->setRange(1, 255);
@@ -1752,13 +1924,13 @@ void MainWindow::showCreateTableDialog()
         // 当类型改变时更新长度输入框的状态和值
         QObject::connect(colType, &QComboBox::currentTextChanged, [colLength](const QString &text)
                          {
-                             if (text == "CHAR") {
+                             if (text == "VarChar(n)") {
                                  colLength->setEnabled(true);
-                                 colLength->setButtonSymbols(QAbstractSpinBox::UpDownArrows);  // CHAR类型显示上下箭头
+                                 colLength->setButtonSymbols(QAbstractSpinBox::UpDownArrows);
                                  colLength->setValue(32);
                              } else {
-                                 colLength->setEnabled(false);  // INT和REAL类型不可编辑长度
-                                 colLength->setButtonSymbols(QAbstractSpinBox::NoButtons);  // 不显示上下箭头
+                                 colLength->setEnabled(false);  // Integer和Real类型不可编辑长度
+                                 colLength->setButtonSymbols(QAbstractSpinBox::NoButtons);
                                  colLength->setValue(64);
                              } });
 
@@ -1824,13 +1996,16 @@ void MainWindow::showCreateTableDialog()
             
             if (colName.isEmpty()) continue;
 
-            QString colDef = colName + " " + colType;
-            if (colType == "CHAR") {
-                colDef = QString("%1(%2)").arg(colDef).arg(length);
-            } else {
-                //colDef = QString("%1(%2)").arg(colDef).arg(length);
+            QString sqlType;
+            if (colType == "Integer") {
+                sqlType = "INT";
+            } else if (colType == "Real") {
+                sqlType = "FLOAT";//float
+            } else if (colType == "VarChar(n)") {
+                sqlType = QString("CHAR(%1)").arg(length);
             }
 
+            QString colDef = colName + " " + sqlType;
             if (primaryKeys[i]->isChecked()) {
                 colDef += " PRIMARY KEY";
             }
@@ -2581,11 +2756,59 @@ void MainWindow::onViewAction()
     // 添加分隔线
     viewMenu.addSeparator();
 
-    // 添加标签页选项
+    // 添加标签页选项，带复选框
     QAction *dbTabAction = viewMenu.addAction("数据库标签");
     QAction *dataTabAction = viewMenu.addAction("数据标签");
     QAction *ddlTabAction = viewMenu.addAction("DDL标签");
+    QAction *designTabAction = viewMenu.addAction("设计标签");
     QAction *sqlTabAction = viewMenu.addAction("SQL标签");
+
+    // 创建自定义复选框图标
+    QPixmap checkedPixmap(16, 16);
+    checkedPixmap.fill(Qt::transparent);
+    QPainter checkedPainter(&checkedPixmap);
+    checkedPainter.setPen(QPen(Qt::black, 2));
+    checkedPainter.drawRect(2, 2, 12, 12);
+    checkedPainter.drawLine(4, 8, 7, 11);
+    checkedPainter.drawLine(7, 11, 12, 4);
+    QIcon checkedIcon(checkedPixmap);
+
+    QPixmap uncheckedPixmap(16, 16);
+    uncheckedPixmap.fill(Qt::transparent);
+    QPainter uncheckedPainter(&uncheckedPixmap);
+    uncheckedPainter.setPen(QPen(Qt::black, 2));
+    uncheckedPainter.drawRect(2, 2, 12, 12);
+    QIcon uncheckedIcon(uncheckedPixmap);
+
+    // 设置复选框
+    dbTabAction->setChecked(true);
+    dataTabAction->setCheckable(true);
+    ddlTabAction->setCheckable(true);
+    designTabAction->setCheckable(true);
+    sqlTabAction->setCheckable(true);
+
+    // 同步设置标签页可见性
+    if (rightTabWidget)
+    {
+        rightTabWidget->setTabVisible(0, true);
+        rightTabWidget->setTabVisible(1, true);
+        rightTabWidget->setTabVisible(2, true);
+        rightTabWidget->setTabVisible(3, true);
+        rightTabWidget->setTabVisible(4, true);
+    }
+
+    // 根据当前标签页的可见性设置复选框状态和图标
+    dbTabAction->setChecked(rightTabWidget->isTabVisible(0));
+    dataTabAction->setChecked(rightTabWidget->isTabVisible(1));
+    ddlTabAction->setChecked(rightTabWidget->isTabVisible(2));
+    designTabAction->setChecked(rightTabWidget->isTabVisible(3));
+    sqlTabAction->setChecked(rightTabWidget->isTabVisible(4));
+
+    dbTabAction->setIcon(dbTabAction->isChecked() ? checkedIcon : uncheckedIcon);
+    dataTabAction->setIcon(dataTabAction->isChecked() ? checkedIcon : uncheckedIcon);
+    ddlTabAction->setIcon(ddlTabAction->isChecked() ? checkedIcon : uncheckedIcon);
+    designTabAction->setIcon(designTabAction->isChecked() ? checkedIcon : uncheckedIcon);
+    sqlTabAction->setIcon(sqlTabAction->isChecked() ? checkedIcon : uncheckedIcon);
 
     // 显示菜单
     QAction *selectedAction = viewMenu.exec(QCursor::pos());
@@ -2594,19 +2817,41 @@ void MainWindow::onViewAction()
     {
         if (selectedAction == dbTabAction)
         {
-            rightTabWidget->setCurrentIndex(0);
+            rightTabWidget->setTabVisible(0, dbTabAction->isChecked());
+            dbTabAction->setIcon(dbTabAction->isChecked() ? checkedIcon : uncheckedIcon);
         }
         else if (selectedAction == dataTabAction)
         {
-            rightTabWidget->setCurrentIndex(1);
+            rightTabWidget->setTabVisible(1, dataTabAction->isChecked());
+            dataTabAction->setIcon(dataTabAction->isChecked() ? checkedIcon : uncheckedIcon);
         }
         else if (selectedAction == ddlTabAction)
         {
-            rightTabWidget->setCurrentIndex(2);
+            rightTabWidget->setTabVisible(2, ddlTabAction->isChecked());
+            ddlTabAction->setIcon(ddlTabAction->isChecked() ? checkedIcon : uncheckedIcon);
+        }
+        else if (selectedAction == designTabAction)
+        {
+            rightTabWidget->setTabVisible(3, designTabAction->isChecked());
+            designTabAction->setIcon(designTabAction->isChecked() ? checkedIcon : uncheckedIcon);
         }
         else if (selectedAction == sqlTabAction)
         {
-            rightTabWidget->setCurrentIndex(3);
+            rightTabWidget->setTabVisible(4, sqlTabAction->isChecked());
+            sqlTabAction->setIcon(sqlTabAction->isChecked() ? checkedIcon : uncheckedIcon);
+        }
+
+        // 如果当前显示的标签页被隐藏，则切换到第一个可见的标签页
+        if (!rightTabWidget->isTabVisible(rightTabWidget->currentIndex()))
+        {
+            for (int i = 0; i < rightTabWidget->count(); ++i)
+            {
+                if (rightTabWidget->isTabVisible(i))
+                {
+                    rightTabWidget->setCurrentIndex(i);
+                    break;
+                }
+            }
         }
     }
 }
@@ -2784,11 +3029,19 @@ void MainWindow::onShowDDLTab()
     }
 }
 
-void MainWindow::onShowSQLTab()
+void MainWindow::onShowDesignTab()
 {
     if (rightTabWidget)
     {
         rightTabWidget->setCurrentIndex(3);
+    }
+}
+
+void MainWindow::onShowSQLTab()
+{
+    if (rightTabWidget)
+    {
+        rightTabWidget->setCurrentIndex(4);
     }
 }
 

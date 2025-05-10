@@ -1,5 +1,11 @@
 {
     "cmake.generator": "Unix Makefiles",
-    "editor.fontSize": 16
+    "editor.fontSize": 16,
+    "files.associations": {
+        "chrono": "cpp",
+        "optional": "cpp",
+        "format": "cpp",
+        "system_error": "cpp"
+    }
 }
 
