@@ -440,7 +440,7 @@ void MainWindow::initUI()
     searchMenu = menuBar->addMenu(tr("搜索(&R)"));
     QAction *searchTableAction = searchMenu->addAction(tr("表查找"), this, &MainWindow::onSearchTable);
     searchTableAction->setShortcut(QKeySequence("Ctrl+F"));
-    QAction *searchColumnAction = searchMenu->addAction(tr("段查找"), this, &MainWindow::onSearchColumn);
+    QAction *searchColumnAction = searchMenu->addAction(tr("字段查找"), this, &MainWindow::onSearchColumn);
     searchColumnAction->setShortcut(QKeySequence("Ctrl+Shift+C"));
     QAction *searchValueAction = searchMenu->addAction(tr("数值查找"), this, &MainWindow::onSearchValue);
     searchValueAction->setShortcut(QKeySequence("Ctrl+Alt+N"));
@@ -3692,7 +3692,7 @@ void MainWindow::executeSQLStatement(const QString &sql)
 
     if (rc != 0)
     {
-        QString errorMsg = QString("SQL执行失败: %1").arg(rc);
+        QString errorMsg = QString("SQL执行失败: %1").arg(Rc2Msg::getErrorMsg(rc));
         qDebug() << "错误代码:" << rc;
         showError(errorMsg);
         if (errmsg)
@@ -4081,7 +4081,7 @@ void MainWindow::onSearchColumn()
     }
 
     QDialog dialog(this);
-    dialog.setWindowTitle("段查找");
+    dialog.setWindowTitle("字段查找");
     dialog.setMinimumWidth(400);
     dialog.setMinimumHeight(300);
     QVBoxLayout *layout = new QVBoxLayout(&dialog);
