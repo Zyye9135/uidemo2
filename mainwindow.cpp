@@ -719,7 +719,7 @@ void MainWindow::initUI()
             background: #F0F0F0;
             border: 1px solid #C0C0C0;
             border-bottom-color: #C0C0C0;
-            border-top-left-radius: 4px;
+            border-top-left-radius:4px;
             border-top-right-radius: 4px;
             min-width: 8ex;
             padding: 2px 8px;
@@ -4728,11 +4728,11 @@ QWidget* MainWindow::createTabCloseButton()
             border: none;
         }
         QToolButton:hover {
-            background: #FF0000;
-            border-radius: 8px;
+            background: #D41123;
+            border-radius: 6px;
         }
         QToolButton:pressed {
-            background: #CC0000;
+            background: #CC1123;
         }
     )");
     
@@ -4746,8 +4746,8 @@ QWidget* MainWindow::createTabCloseButton()
             QPainter np(&normal);
             np.setRenderHint(QPainter::Antialiasing);
             np.setPen(QPen(Qt::black, 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-            np.drawLine(4, 4, 12, 12);
-            np.drawLine(12, 4, 4, 12);
+            np.drawLine(5, 5, 11, 11);
+            np.drawLine(11, 5, 5, 11);
             normalIcon = QIcon(normal);
             
             // 创建悬停图标（白色X）
@@ -4756,8 +4756,8 @@ QWidget* MainWindow::createTabCloseButton()
             QPainter hp(&hover);
             hp.setRenderHint(QPainter::Antialiasing);
             hp.setPen(QPen(Qt::white, 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-            hp.drawLine(4, 4, 12, 12);
-            hp.drawLine(12, 4, 4, 12);
+            hp.drawLine(5, 5, 11, 11);
+            hp.drawLine(11, 5, 5, 11);
             hoverIcon = QIcon(hover);
             
             btn->setIcon(normalIcon);
